@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 )
 
 var matcher *regexp.Regexp
@@ -49,7 +50,8 @@ func parseLine(line string) (*IptablesReq, error) {
 	}, nil
 }
 
-func WatchDmesg(file *os.File, c chan *IptablesReq) {
+func WatchDmesg(file *os.File, c chan *IptablesReq, wg *sync.WaitGroup) {
+	defer wg.Done()
 	reader := bufio.NewReader(file)
 
 	for {
