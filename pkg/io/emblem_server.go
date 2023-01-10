@@ -32,7 +32,6 @@ func EmblemUDPServer(cfg *gen.TokenConfig, port int, c chan net.Addr, wg *sync.W
 			if err != nil {
 				break
 			}
-			addr.(*net.UDPAddr).Port = port
 			c <- addr
 		}
 		localWg.Done()
