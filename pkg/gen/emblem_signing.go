@@ -8,9 +8,14 @@ import (
 	jwt "github.com/golang-jwt/jwt/v4"
 )
 
-func GenToken(secretKey *ecdsa.PrivateKey, alg jwt.SigningMethod, skeleton jwt.MapClaims) (string, error) {
+func GenToken(secretKey *ecdsa.PrivateKey, alg jwt.SigningMethod, skeleton jwt.MapClaims) (string, int64, error) {
 	skeleton["nbf"] = time.Now().Unix()
-	skeleton["exp"] = skeleton["nbf"].(int64) + args.LoadLifetime()
+	exp := skeleton["nbf"].(int64) + args.LoadLifetime()
+	skeleton["exp"] = exp
 	token := jwt.NewWithClaims(alg, skeleton)
-	return token.SignedString(secretKey)
+	signed, err := token.SignedString(secretKey)
+	if err != nil {
+		return "", -1, err
+	}
+	return signed, exp, nil
 }
