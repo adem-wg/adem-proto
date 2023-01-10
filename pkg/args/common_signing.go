@@ -80,7 +80,7 @@ func LoadClaimsProto() ClaimsProto {
 	return claimsProto
 }
 
-func LoadEndorsements() ([][]byte, error) {
+func LoadEndorsements() ([]string, error) {
 	if endorsementsDir == "" {
 		log.Fatal("no --end arg")
 	}
@@ -90,7 +90,7 @@ func LoadEndorsements() ([][]byte, error) {
 		log.Fatalf("cannot expand endorsements glob: %s", err)
 	}
 
-	endorsements := [][]byte{}
+	endorsements := []string{}
 	for _, fpath := range matches {
 		switch path.Ext(fpath) {
 		case ".jwt":
@@ -98,7 +98,7 @@ func LoadEndorsements() ([][]byte, error) {
 			if err != nil {
 				log.Printf("could not parse file %s", fpath)
 			}
-			endorsements = append(endorsements, bs)
+			endorsements = append(endorsements, string(bs))
 		}
 	}
 

@@ -2,7 +2,7 @@ package io
 
 import (
 	"bufio"
-	"errors"
+	"fmt"
 	"net"
 	"os"
 	"regexp"
@@ -13,55 +13,41 @@ import (
 var matcher *regexp.Regexp
 
 func init() {
-	matcher = regexp.MustCompile(`\[\s*(\d+\.\d+)\]\s*iptables log:.+SRC=([\d\.:]+).+SPT=(\d+).+DPT=(\d+)`)
+	matcher = regexp.MustCompile(`\[\s*(\d+\.\d+)\]\s*iptables log:.*SRC=([\d\.:]+).*DPT=(\d+)`)
 }
 
-type IptablesReq struct {
-	IP  net.IP
-	SPT uint16
-	DPT uint16
-}
-
-func parseLine(line string) (*IptablesReq, error) {
+func parseLine(line string, serverPort int) net.Addr {
 	match := matcher.FindStringSubmatch(line)
 	if match == nil {
-		return nil, errors.New("no match")
+		return nil
 	}
 
-	spt, err := strconv.ParseUint(match[3], 10, 16)
-	if err != nil {
-		return nil, err
+	dpt, err := strconv.ParseInt(match[3], 10, 16)
+	// If DPT == serverPort, the server will handle this request
+	if err != nil || dpt == int64(serverPort) {
+		return nil
 	}
 
-	dpt, err := strconv.ParseUint(match[4], 10, 16)
-	if err != nil {
-		return nil, err
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", match[2], serverPort))
+	if err != nil || addr.IP.IsLoopback() {
+		return nil
 	}
-
-	ip := net.ParseIP(match[2])
-	if ip == nil {
-		return nil, errors.New("invalid IP")
-	}
-
-	return &IptablesReq{
-		IP:  ip,
-		SPT: uint16(spt),
-		DPT: uint16(dpt),
-	}, nil
+	return addr
 }
 
-func WatchDmesg(file *os.File, c chan *IptablesReq, wg *sync.WaitGroup) {
+func WatchDmesg(file *os.File, serverPort int, c chan net.Addr, wg *sync.WaitGroup) {
 	defer wg.Done()
 	reader := bufio.NewReader(file)
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
+			close(c)
 			return
 		}
 
-		request, err := parseLine(line)
-		if err == nil {
+		request := parseLine(line, serverPort)
+		if request != nil {
 			c <- request
 		}
 	}

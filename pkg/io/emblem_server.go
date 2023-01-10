@@ -1,47 +1,64 @@
 package io
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net"
 	"sync"
+	"time"
+
+	"github.com/adem-wg/adem-proto/pkg/args"
+	"github.com/adem-wg/adem-proto/pkg/gen"
 )
 
-const udp_port = uint16(60)
+var emblem []byte
+var emblemExp int64 = -1
 
-func EmblemUDPServer() (net.PacketConn, error) {
-	conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", udp_port))
+func EmblemUDPServer(cfg *gen.TokenConfig, port int, c chan net.Addr, wg *sync.WaitGroup) {
+	defer wg.Done()
+	conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		return nil, err
+		log.Fatalf("could not start server: %s", err)
 	}
+
+	var localWg sync.WaitGroup
+	localWg.Add(2)
 
 	go func() {
 		buf := []byte{}
 		for {
 			_, addr, err := conn.ReadFrom(buf)
 			if err != nil {
-				continue
+				break
 			}
-			conn.WriteTo([]byte{}, addr)
+			addr.(*net.UDPAddr).Port = port
+			c <- addr
 		}
+		localWg.Done()
 	}()
 
-	return conn, nil
-}
-
-func EmblemDispatcher(c chan *IptablesReq, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for req := range c {
-		if req == nil {
-			continue
+	go func() {
+		for addr := range c {
+			if emblemExp <= time.Now().Unix()+int64(args.SafetyWindow) {
+				var emblemS string
+				var err error
+				emblemS, emblemExp, err = cfg.Gen()
+				if err != nil {
+					log.Printf("cannot generate emblem: %s", err)
+					continue
+				}
+				emblem, err = base64.StdEncoding.DecodeString(emblemS)
+				if err != nil {
+					log.Printf("cannot decode emblem: %s", err)
+					continue
+				}
+			}
+			conn.WriteTo(emblem, addr)
 		}
+		conn.Close()
+		localWg.Done()
+	}()
 
-		if (*req).DPT == udp_port {
-			// Will be handled by UDP server
-			continue
-		}
-
-		log.Printf("%+v\n", *req)
-	}
+	localWg.Wait()
 }
