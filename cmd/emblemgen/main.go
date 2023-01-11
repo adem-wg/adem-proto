@@ -10,7 +10,7 @@ import (
 
 func main() {
 	flag.Parse()
-	emblem, _, err := gen.GenToken(
+	_, emblem, err := gen.GenToken(
 		args.LoadPrivateKey(),
 		args.LoadAlg(),
 		args.LoadClaimsProto(),
@@ -18,5 +18,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(emblem)
+	log.Printf("%s\n", emblem)
 }

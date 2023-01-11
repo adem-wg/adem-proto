@@ -1,31 +1,39 @@
 package gen
 
 import (
-	"crypto/ecdsa"
 	"time"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 type TokenConfig struct {
-	Sk    *ecdsa.PrivateKey
-	Alg   jwt.SigningMethod
-	Proto jwt.MapClaims
+	Sk    jwk.Key
+	Alg   *jwa.SignatureAlgorithm
+	Proto jwt.Token
 }
 
-func (cfg *TokenConfig) Gen() (string, int64, error) {
+func (cfg *TokenConfig) Gen() (jwt.Token, []byte, error) {
 	return GenToken(cfg.Sk, cfg.Alg, cfg.Proto)
 }
 
-func GenToken(secretKey *ecdsa.PrivateKey, alg jwt.SigningMethod, proto jwt.MapClaims) (string, int64, error) {
-	proto["nbf"] = time.Now().Unix()
-	exp := proto["nbf"].(int64) + args.LoadLifetime()
-	proto["exp"] = exp
-	token := jwt.NewWithClaims(alg, proto)
-	signed, err := token.SignedString(secretKey)
-	if err != nil {
-		return "", -1, err
+func GenToken(secretKey jwk.Key, alg *jwa.SignatureAlgorithm, token jwt.Token) (jwt.Token, []byte, error) {
+	iat := time.Now().Unix()
+	if err := token.Set("iat", iat); err != nil {
+		return nil, nil, err
 	}
-	return signed, exp, nil
+	if err := token.Set("nbf", iat); err != nil {
+		return nil, nil, err
+	}
+	if err := token.Set("exp", iat+args.LoadLifetime()); err != nil {
+		return nil, nil, err
+	}
+
+	compact, err := jwt.Sign(token, jwt.WithKey(*alg, secretKey))
+	if err != nil {
+		return nil, nil, err
+	}
+	return token, compact, nil
 }

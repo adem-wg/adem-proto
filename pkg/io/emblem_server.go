@@ -1,7 +1,6 @@
 package io
 
 import (
-	"encoding/base64"
 	"fmt"
 	"log"
 	"net"
@@ -10,10 +9,11 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/gen"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-var emblem []byte
-var emblemExp int64 = -1
+var emblem jwt.Token
+var emblemCompact []byte
 
 func EmblemUDPServer(cfg *gen.TokenConfig, port int, c chan net.Addr, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -39,21 +39,18 @@ func EmblemUDPServer(cfg *gen.TokenConfig, port int, c chan net.Addr, wg *sync.W
 
 	go func() {
 		for addr := range c {
-			if emblemExp <= time.Now().Unix()+int64(args.SafetyWindow) {
-				var emblemS string
+			if emblem.Expiration().Unix() <= time.Now().Unix()+int64(args.SafetyWindow) {
 				var err error
-				emblemS, emblemExp, err = cfg.Gen()
+				emblem, emblemCompact, err = cfg.Gen()
 				if err != nil {
 					log.Printf("cannot generate emblem: %s", err)
 					continue
 				}
-				emblem, err = base64.StdEncoding.DecodeString(emblemS)
-				if err != nil {
-					log.Printf("cannot decode emblem: %s", err)
-					continue
-				}
 			}
-			conn.WriteTo(emblem, addr)
+
+			if emblemCompact != nil {
+				conn.WriteTo(emblemCompact, addr)
+			}
 		}
 		conn.Close()
 		localWg.Done()
