@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 
+	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
@@ -60,7 +61,7 @@ func validateCommon(t jwt.Token) jwt.ValidationError {
 		return err.(jwt.ValidationError)
 	}
 
-	if ver, ok := t.Get(`ver`); !ok || ver.(string) != "v1" {
+	if ver, ok := t.Get(`ver`); !ok || ver.(consts.Version) != consts.V1 {
 		return ErrIllegalVersion
 	}
 
@@ -84,8 +85,8 @@ func validateCommon(t jwt.Token) jwt.ValidationError {
 func validateConstraints(details map[string]interface{}) jwt.ValidationError {
 	prps, ok := details["prp"]
 	if ok {
-		for _, prp := range prps.([]string) {
-			if prp != "protective" && prp != "indicative" {
+		for _, prp := range prps.([]consts.Purpose) {
+			if prp != consts.Protective && prp != consts.Indicative {
 				return ErrIllegalPrp
 			}
 		}
@@ -93,8 +94,8 @@ func validateConstraints(details map[string]interface{}) jwt.ValidationError {
 
 	dsts, ok := details["dst"]
 	if ok {
-		for _, dst := range dsts.([]string) {
-			if dst != "dns" && dst != "tls" && dst != "udp" {
+		for _, dst := range dsts.([]consts.Distribution) {
+			if dst != consts.DNS && dst != consts.TLS && dst != consts.UDP {
 				return ErrIllegalDst
 			}
 		}
