@@ -47,11 +47,11 @@ func GetKID(key jwk.Key) (string, error) {
 	return base64.StdEncoding.EncodeToString(h[:]), nil
 }
 
-func SetKID(key *jwk.Key) error {
-	kid, err := GetKID(*key)
+func SetKID(key jwk.Key) error {
+	kid, err := GetKID(key)
 	if err != nil {
 		return err
 	}
-	(*key).Set("kid", kid)
+	key.Set("kid", kid)
 	return nil
 }
