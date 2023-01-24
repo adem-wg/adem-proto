@@ -4,8 +4,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path"
-	"path/filepath"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -13,19 +11,23 @@ import (
 )
 
 var alg string
-var pem bool
 var lifetime int64
 var skeyFile string
+var skeyPEM bool
 var protoPath string
-var endorsementsDir string
+var endorseKeyPath string
+var endorseKeyPEM bool
+var SetVerifyJWK bool
 
 func init() {
 	flag.StringVar(&alg, "alg", "", "signing algorithm")
-	flag.BoolVar(&pem, "pem", true, "false to parse key as JWK")
 	flag.Int64Var(&lifetime, "lifetime", 172800, "emblem validity period")
 	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
+	flag.BoolVar(&skeyPEM, "skey-pem", true, "secret key is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
-	flag.StringVar(&endorsementsDir, "end", "", "path to endorsements")
+	flag.StringVar(&endorseKeyPath, "endorse", "", "path to key to endorse")
+	flag.BoolVar(&endorseKeyPEM, "endorse-pem", true, "endorse key is PEM")
+	flag.BoolVar(&SetVerifyJWK, "set-jwk", false, "true to include verification key in header")
 }
 
 func LoadAlg() *jwa.SignatureAlgorithm {
@@ -55,7 +57,7 @@ func LoadPrivateKey() jwk.Key {
 		log.Fatalf("cannot read key file: %s", err)
 	}
 
-	key, err := jwk.ParseKey(bs, jwk.WithPEM(true))
+	key, err := jwk.ParseKey(bs, jwk.WithPEM(skeyPEM))
 	if err != nil {
 		log.Fatalf("cannot parse key: %s", err)
 	}
@@ -74,27 +76,24 @@ func LoadClaimsProto() jwt.Token {
 	return claimsProto
 }
 
-func LoadEndorsements() ([]string, error) {
-	if endorsementsDir == "" {
-		log.Fatal("no --end arg")
+func LoadEndorseKey() jwk.Key {
+	if endorseKeyPath == "" {
+		return nil
 	}
 
-	matches, err := filepath.Glob(endorsementsDir)
+	keySet, err := jwk.ReadFile(endorseKeyPath, jwk.WithPEM(endorseKeyPEM))
 	if err != nil {
-		log.Fatalf("cannot expand endorsements glob: %s", err)
+		log.Fatalf("cannot parse key file: %s", err)
 	}
 
-	endorsements := []string{}
-	for _, fpath := range matches {
-		switch path.Ext(fpath) {
-		case ".jwt":
-			bs, err := os.ReadFile(fpath)
-			if err != nil {
-				log.Printf("could not parse file %s", fpath)
-			}
-			endorsements = append(endorsements, string(bs))
-		}
+	if keySet.Len() > 1 {
+		log.Fatalf("key set provided for endorsement")
 	}
 
-	return endorsements, nil
+	key, ok := keySet.Key(0)
+	if !ok {
+		log.Fatalf("empty key set provided for endorsement")
+	}
+
+	return key
 }

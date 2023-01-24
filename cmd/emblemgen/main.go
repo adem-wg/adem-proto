@@ -10,13 +10,26 @@ import (
 
 func main() {
 	flag.Parse()
-	_, emblem, err := gen.GenToken(
-		args.LoadPrivateKey(),
-		args.LoadAlg(),
-		args.LoadClaimsProto(),
-	)
+	var signedToken []byte
+	var err error
+	endorseKey := args.LoadEndorseKey()
+	if endorseKey == nil {
+		_, signedToken, err = gen.SignEmblem(
+			args.LoadPrivateKey(),
+			args.LoadAlg(),
+			args.LoadClaimsProto(),
+		)
+	} else {
+		_, signedToken, err = gen.SignEndorsement(
+			args.LoadPrivateKey(),
+			args.LoadAlg(),
+			args.LoadClaimsProto(),
+			endorseKey,
+		)
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("%s\n", emblem)
+	log.Printf("%s\n", string(signedToken))
 }

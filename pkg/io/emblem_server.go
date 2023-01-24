@@ -41,7 +41,7 @@ func EmblemUDPServer(cfg *gen.TokenConfig, port int, c chan net.Addr, wg *sync.W
 		for addr := range c {
 			if emblem.Expiration().Unix() <= time.Now().Unix()+int64(args.SafetyWindow) {
 				var err error
-				emblem, emblemCompact, err = cfg.Gen()
+				emblem, emblemCompact, err = cfg.GenEmblem()
 				if err != nil {
 					log.Printf("cannot generate emblem: %s", err)
 					continue
