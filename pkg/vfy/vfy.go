@@ -47,7 +47,7 @@ func vfyTokenAsync(rawToken []byte, km *keyManager, results chan *ADEMToken, wg 
 func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	var wg sync.WaitGroup
 	wg.Add(len(rawTokens))
-	km := NewKeyManager(len(rawTokens))
+	km := NewKeyManager()
 	tokens := make(chan *ADEMToken)
 	for _, rawToken := range rawTokens {
 		go vfyTokenAsync(rawToken, km, tokens, &wg)

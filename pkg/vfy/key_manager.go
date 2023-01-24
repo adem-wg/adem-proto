@@ -11,46 +11,24 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
-var NoKeyFound = errors.New("no key found")
+var ErrNoKeyFound = errors.New("no key found")
 
 type keyManager struct {
 	mu        sync.Mutex
-	providers *sync.WaitGroup
 	keys      map[string]jwk.Key
 	listeners map[string][]chan jwk.Key
 }
 
-func NewKeyManager(providersNum int) *keyManager {
+func NewKeyManager() *keyManager {
 	var km keyManager
-	km.providers.Add(providersNum)
 	km.keys = make(map[string]jwk.Key)
 	km.listeners = make(map[string][]chan jwk.Key)
-
-	go func() {
-		// Wait until every token either stored a key or is waiting for a key...
-		km.providers.Wait()
-
-		for _, lstnrs := range km.listeners {
-			if lstnrs == nil {
-				continue
-			}
-			for _, lstnr := range lstnrs {
-				if lstnr == nil {
-					continue
-				}
-				// ...close any remaining channels because otherwise, we may not terminate
-				close(lstnr)
-			}
-		}
-	}()
-
 	return &km
 }
 
 func (km *keyManager) put(k jwk.Key) {
 	km.mu.Lock()
 	defer km.mu.Unlock()
-	defer km.providers.Done()
 
 	if k.KeyID() == "" {
 		err := util.SetKID(k)
@@ -81,13 +59,19 @@ func (km *keyManager) put(k jwk.Key) {
 func (km *keyManager) get(kid string) chan jwk.Key {
 	km.mu.Lock()
 	defer km.mu.Unlock()
-	km.providers.Done()
 
 	c := make(chan jwk.Key)
 	k, ok := km.keys[kid]
 	if ok {
 		c <- k
 		close(c)
+	} else {
+		listeners, ok := km.listeners[kid]
+		if ok {
+			km.listeners[kid] = append(listeners, c)
+		} else {
+			km.listeners[kid] = [](chan jwk.Key){c}
+		}
 	}
 	return c
 }
@@ -98,13 +82,15 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 		km.put(jwk)
 	} else {
 		kid := sig.ProtectedHeaders().KeyID()
+		// TODO: next line might lead to non-termination
 		jwk = <-km.get(kid)
 	}
 
 	if jwk == nil {
-		return NoKeyFound
+		return ErrNoKeyFound
 	}
 
-	sink.Key(jwa.SignatureAlgorithm(jwk.Algorithm().String()), jwk)
+	// TODO: This is insecure because an attacker could set algorithm to none
+	sink.Key(jwa.SignatureAlgorithm(sig.ProtectedHeaders().Algorithm()), jwk)
 	return nil
 }
