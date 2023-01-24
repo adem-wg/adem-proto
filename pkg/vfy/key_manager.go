@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -52,7 +53,10 @@ func (km *keyManager) put(k jwk.Key) {
 	defer km.providers.Done()
 
 	if k.KeyID() == "" {
-		return
+		err := util.SetKID(&k)
+		if err != nil {
+			return
+		}
 	}
 
 	_, ok := km.keys[k.KeyID()]

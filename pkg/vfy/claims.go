@@ -29,6 +29,14 @@ var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token
 		return err
 	}
 
+	end, ok := t.Get("end")
+	if ok {
+		_, check := end.(bool)
+		if !check {
+			return ErrIllegalType
+		}
+	}
+
 	return nil
 })
 

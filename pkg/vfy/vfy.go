@@ -4,77 +4,87 @@ import (
 	"log"
 	"sync"
 
+	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 type VerificationResult byte
 
-var UNSIGNED VerificationResult = 0
-var INVALID VerificationResult = 1
-var SIGNED VerificationResult = 2
-var ORGANIZATIONAL VerificationResult = 3
-var ENDORSED VerificationResult = 4
+const UNSIGNED VerificationResult = 0
+const INVALID VerificationResult = 1
+const SIGNED VerificationResult = 2
+const ORGANIZATIONAL VerificationResult = 3
+const ENDORSED VerificationResult = 4
+const SIGNED_TRUSTED VerificationResult = 5
+const ORGANIZATIONAL_TRUSTED VerificationResult = 6
+const ENDORSED_TRUSTED VerificationResult = 7
 
-type HeaderedTokens struct {
-	Headers jws.Headers
-	Token   jwt.Token
-}
-
-func vfyTokenAsync(rawToken []byte, km *keyManager, results chan HeaderedTokens, wg *sync.WaitGroup) {
+func vfyTokenAsync(rawToken []byte, km *keyManager, results chan *ADEMToken, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	msg, err := jws.Parse(rawToken)
 	if err != nil {
 		return
 	}
-	token, err := jwt.Parse(rawToken, jwt.WithKeyProvider(km))
+	jwtT, err := jwt.Parse(rawToken, jwt.WithKeyProvider(km))
 	if err != nil {
 		return
 	}
-	results <- HeaderedTokens{msg.Signatures()[0].ProtectedHeaders(), token}
+	ademT, err := MkADEMToken(msg.Signatures()[0].ProtectedHeaders(), jwtT)
+	if err != nil {
+		return
+	}
+	results <- ademT
 }
 
-func VerifyTokens(rawTokens [][]byte) VerificationResult {
+func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	var wg sync.WaitGroup
 	wg.Add(len(rawTokens))
 	km := NewKeyManager(len(rawTokens))
-	results := make(chan HeaderedTokens)
+	tokens := make(chan *ADEMToken)
 	for _, rawToken := range rawTokens {
-		go vfyTokenAsync(rawToken, km, results, &wg)
+		go vfyTokenAsync(rawToken, km, tokens, &wg)
 	}
 	go func() {
 		wg.Wait()
-		close(results)
+		close(tokens)
 	}()
 
-	var emblem jwt.Token
-	endorsements := []jwt.Token{}
-	for htoken := range results {
-		if htoken.Headers.Type() == "adem-emb" {
+	var emblem *ADEMToken
+	endorsements := []*ADEMToken{}
+	for t := range tokens {
+		if t.Headers.Type() == "adem-emb" {
 			if emblem != nil {
 				// Multiple emblems
 				log.Print("Token set contains multiple emblems")
-				return INVALID
-			}
-
-			err := jwt.Validate(htoken.Token, jwt.WithValidator(EmblemValidator))
-			if err != nil {
+				return []VerificationResult{INVALID}
+			} else if err := jwt.Validate(t.Token, jwt.WithValidator(EmblemValidator)); err != nil {
 				log.Printf("Invalid emblem: %s", err)
-				return INVALID
+				return []VerificationResult{INVALID}
+			} else if t.Headers.Algorithm() == jwa.NoSignature {
+				return []VerificationResult{UNSIGNED}
+			} else {
+				emblem = t
 			}
-			emblem = htoken.Token
-		} else if htoken.Headers.Type() == "adem-end" {
-			err := jwt.Validate(htoken.Token, jwt.WithValidator(EndorsementValidator))
+		} else if t.Headers.Type() == "adem-end" {
+			err := jwt.Validate(t.Token, jwt.WithValidator(EndorsementValidator))
 			if err != nil {
 				log.Printf("Invalid endorsement: %s", err)
 			} else {
-				endorsements = append(endorsements, htoken.Token)
+				endorsements = append(endorsements, t)
 			}
 		} else {
-			log.Printf("Token has wrong type: %s", htoken.Headers.Type())
+			log.Printf("Token has wrong type: %s", t.Headers.Type())
 		}
 	}
 
-	return SIGNED
+	results, root := verifySignedOrganizational(emblem, endorsements)
+	if util.Contains(results, INVALID) {
+		return results
+	}
+
+	endorsedResults := verifyEndorsed(root, endorsements)
+	return append(results, endorsedResults...)
 }
