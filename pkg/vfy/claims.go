@@ -61,7 +61,7 @@ func validateCommon(t jwt.Token) jwt.ValidationError {
 		return err.(jwt.ValidationError)
 	}
 
-	if ver, ok := t.Get(`ver`); !ok || ver.(consts.Version) != consts.V1 {
+	if ver, ok := t.Get(`ver`); !ok || ver.(string) != string(consts.V1) {
 		return ErrIllegalVersion
 	}
 
@@ -85,8 +85,8 @@ func validateCommon(t jwt.Token) jwt.ValidationError {
 func validateConstraints(details map[string]interface{}) jwt.ValidationError {
 	prps, ok := details["prp"]
 	if ok {
-		for _, prp := range prps.([]consts.Purpose) {
-			if prp != consts.Protective && prp != consts.Indicative {
+		for _, prp := range prps.([]interface{}) {
+			if prp.(string) != string(consts.Protective) && prp.(string) != string(consts.Indicative) {
 				return ErrIllegalPrp
 			}
 		}
@@ -94,8 +94,8 @@ func validateConstraints(details map[string]interface{}) jwt.ValidationError {
 
 	dsts, ok := details["dst"]
 	if ok {
-		for _, dst := range dsts.([]consts.Distribution) {
-			if dst != consts.DNS && dst != consts.TLS && dst != consts.UDP {
+		for _, dst := range dsts.([]interface{}) {
+			if dst.(string) != string(consts.DNS) && dst.(string) != string(consts.TLS) && dst.(string) != string(consts.UDP) {
 				return ErrIllegalDst
 			}
 		}
