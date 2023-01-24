@@ -54,6 +54,7 @@ func vfyTokenAsync(rawToken []byte, km *keyManager, results chan *ADEMToken, wg 
 	}
 	jwtT, err := jwt.Parse(rawToken, jwt.WithKeyProvider(km))
 	if err != nil {
+		log.Printf("verification failure: %s", err)
 		return
 	}
 	k, err := util.GetEndorsedJWK(jwtT)
