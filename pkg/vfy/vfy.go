@@ -13,6 +13,29 @@ import (
 
 type VerificationResult byte
 
+func (vr VerificationResult) String() string {
+	switch vr {
+	case UNSIGNED:
+		return "UNSIGNED"
+	case INVALID:
+		return "INVALID"
+	case SIGNED:
+		return "SIGNED"
+	case ORGANIZATIONAL:
+		return "ORGANIZATIONAL"
+	case ENDORSED:
+		return "ENDORSED"
+	case SIGNED_TRUSTED:
+		return "SIGNED_TRUSTED"
+	case ORGANIZATIONAL_TRUSTED:
+		return "ORGANIZATIONAL_TRUSTED"
+	case ENDORSED_TRUSTED:
+		return "ENDORSED_TRUSTED"
+	default:
+		return ""
+	}
+}
+
 const UNSIGNED VerificationResult = 0
 const INVALID VerificationResult = 1
 const SIGNED VerificationResult = 2
