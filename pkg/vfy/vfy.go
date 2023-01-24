@@ -33,6 +33,10 @@ func vfyTokenAsync(rawToken []byte, km *keyManager, results chan *ADEMToken, wg 
 	if err != nil {
 		return
 	}
+	k, err := util.GetEndorsedJWK(jwtT)
+	if err == nil {
+		km.put(k)
+	}
 	ademT, err := MkADEMToken(msg.Signatures()[0].ProtectedHeaders(), jwtT)
 	if err != nil {
 		return

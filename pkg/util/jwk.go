@@ -11,12 +11,24 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-func GetEndorsedKID(t jwt.Token) (string, error) {
+func GetEndorsedJWK(t jwt.Token) (jwk.Key, error) {
 	k, ok := t.Get("key")
 	if !ok {
-		return "", errors.New("no endorsed key present")
+		return nil, errors.New("no endorsed key present")
 	}
-	jwKey, err := jwk.ParseKey([]byte(k.(string)))
+	bs, err := json.Marshal(k)
+	if err != nil {
+		return nil, err
+	}
+	jwKey, err := jwk.ParseKey(bs)
+	if err != nil {
+		return nil, err
+	}
+	return jwKey, nil
+}
+
+func GetEndorsedKID(t jwt.Token) (string, error) {
+	jwKey, err := GetEndorsedJWK(t)
 	if err != nil {
 		return "", err
 	}
