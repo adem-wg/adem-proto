@@ -4,8 +4,10 @@ import (
 	"time"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
+	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
@@ -31,7 +33,12 @@ func GenToken(secretKey jwk.Key, alg *jwa.SignatureAlgorithm, token jwt.Token) (
 		return nil, nil, err
 	}
 
-	compact, err := jwt.Sign(token, jwt.WithKey(*alg, secretKey))
+	headers := jws.NewHeaders()
+	headers.Set("cty", consts.EmblemCty)
+	compact, err := jwt.Sign(
+		token,
+		jwt.WithKey(*alg, secretKey, jws.WithProtectedHeaders(headers)),
+	)
 	if err != nil {
 		return nil, nil, err
 	}

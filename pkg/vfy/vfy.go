@@ -4,6 +4,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -55,7 +56,7 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	var emblem *ADEMToken
 	endorsements := []*ADEMToken{}
 	for t := range tokens {
-		if t.Headers.Type() == "adem-emb" {
+		if t.Headers.Type() == string(consts.EmblemCty) {
 			if emblem != nil {
 				// Multiple emblems
 				log.Print("Token set contains multiple emblems")
@@ -68,7 +69,7 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 			} else {
 				emblem = t
 			}
-		} else if t.Headers.Type() == "adem-end" {
+		} else if t.Headers.Type() == string(consts.EndorsementCty) {
 			err := jwt.Validate(t.Token, jwt.WithValidator(EndorsementValidator))
 			if err != nil {
 				log.Printf("Invalid endorsement: %s", err)
