@@ -34,6 +34,7 @@ func verifySignedOrganizational(emblem *ADEMToken, endorsements []*ADEMToken) ([
 		endorsing := endorsedBy[last.VerificationKID]
 		if endorsing != nil {
 			// TODO: Check constraints
+			last = endorsing
 		} else {
 			root = last
 		}
