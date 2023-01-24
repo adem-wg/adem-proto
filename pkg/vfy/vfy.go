@@ -83,7 +83,7 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	var emblem *ADEMToken
 	endorsements := []*ADEMToken{}
 	for t := range tokens {
-		if t.Headers.Type() == string(consts.EmblemCty) {
+		if t.Headers.ContentType() == string(consts.EmblemCty) {
 			if emblem != nil {
 				// Multiple emblems
 				log.Print("Token set contains multiple emblems")
@@ -96,7 +96,7 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 			} else {
 				emblem = t
 			}
-		} else if t.Headers.Type() == string(consts.EndorsementCty) {
+		} else if t.Headers.ContentType() == string(consts.EndorsementCty) {
 			err := jwt.Validate(t.Token, jwt.WithValidator(EndorsementValidator))
 			if err != nil {
 				log.Printf("Invalid endorsement: %s", err)
@@ -104,7 +104,7 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 				endorsements = append(endorsements, t)
 			}
 		} else {
-			log.Printf("Token has wrong type: %s", t.Headers.Type())
+			log.Printf("Token has wrong type: %s", t.Headers.ContentType())
 		}
 	}
 
