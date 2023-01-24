@@ -108,6 +108,11 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 		}
 	}
 
+	if emblem == nil {
+		log.Print("no emblem found")
+		return []VerificationResult{INVALID}
+	}
+
 	results, root := verifySignedOrganizational(emblem, endorsements)
 	if util.Contains(results, INVALID) {
 		return results
