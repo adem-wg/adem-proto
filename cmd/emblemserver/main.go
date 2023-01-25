@@ -12,6 +12,11 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/io"
 )
 
+func init() {
+	args.AddEmblemDistributionArgs()
+	args.AddSigningArgs()
+}
+
 func main() {
 	flag.Parse()
 

@@ -8,11 +8,16 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/gen"
 )
 
+func init() {
+	args.AddSigningArgs()
+	args.AddPublicKeyArgs()
+}
+
 func main() {
 	flag.Parse()
 	var signedToken []byte
 	var err error
-	endorseKey := args.LoadEndorseKey()
+	endorseKey := args.LoadPublicKey()
 	if endorseKey == nil {
 		_, signedToken, err = gen.SignEmblem(
 			args.LoadPrivateKey(),

@@ -15,19 +15,22 @@ var lifetime int64
 var skeyFile string
 var skeyPEM bool
 var protoPath string
-var endorseKeyPath string
-var endorseKeyPEM bool
+var publicKeyPath string
+var publicKeyPEM bool
 var SetVerifyJWK bool
 
-func init() {
+func AddSigningArgs() {
 	flag.StringVar(&alg, "alg", "", "signing algorithm")
 	flag.Int64Var(&lifetime, "lifetime", 172800, "emblem validity period")
 	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
 	flag.BoolVar(&skeyPEM, "skey-pem", true, "secret key is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
-	flag.StringVar(&endorseKeyPath, "endorse", "", "path to key to endorse")
-	flag.BoolVar(&endorseKeyPEM, "endorse-pem", true, "endorse key is PEM")
 	flag.BoolVar(&SetVerifyJWK, "set-jwk", false, "true to include verification key in header")
+}
+
+func AddPublicKeyArgs() {
+	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public key (for endorsements or verification)")
+	flag.BoolVar(&publicKeyPEM, "pk-pem", true, "public key is PEM")
 }
 
 func LoadAlg() *jwa.SignatureAlgorithm {
@@ -76,12 +79,12 @@ func LoadClaimsProto() jwt.Token {
 	return claimsProto
 }
 
-func LoadEndorseKey() jwk.Key {
-	if endorseKeyPath == "" {
+func LoadPublicKey() jwk.Key {
+	if publicKeyPath == "" {
 		return nil
 	}
 
-	keySet, err := jwk.ReadFile(endorseKeyPath, jwk.WithPEM(endorseKeyPEM))
+	keySet, err := jwk.ReadFile(publicKeyPath, jwk.WithPEM(publicKeyPEM))
 	if err != nil {
 		log.Fatalf("cannot parse key file: %s", err)
 	}
