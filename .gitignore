@@ -1,2 +1,3 @@
 *.log
 /inputs
+/cmd/test
