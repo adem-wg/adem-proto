@@ -1,13 +1,41 @@
 package vfy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/url"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
+	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
+
+type LogConfig struct {
+	Ver  string   `json:"ver"`
+	Id   string   `json:"id"`
+	Hash LeafHash `json:"hash"`
+}
+
+type LeafHash struct {
+	B64 string
+	Raw []byte
+}
+
+func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
+	trimmed := bytes.Trim(bs, `"`)
+	if raw, e := util.B64Dec(trimmed); e != nil {
+		err = e
+	} else {
+		h.B64 = string(trimmed)
+		h.Raw = raw
+	}
+	return
+}
+
+func init() {
+	jwt.RegisterCustomField("log", []LogConfig{})
+}
 
 var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))
 var ErrIllegalPrp = jwt.NewValidationError(errors.New("illegal prp claim"))
