@@ -2,9 +2,10 @@ package util
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
+	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -44,7 +45,10 @@ func GetKID(key jwk.Key) (string, error) {
 		return key.KeyID(), nil
 	}
 
-	// TODO: This misses the case where key = {...,"kid": ""}
+	return CalcKID(key)
+}
+
+func CalcKID(key jwk.Key) (string, error) {
 	jsonKey, err := json.Marshal(key)
 	if err != nil {
 		return "", err
@@ -56,7 +60,8 @@ func GetKID(key jwk.Key) (string, error) {
 	}
 
 	h := sha256.Sum256(canonical)
-	return base64.StdEncoding.EncodeToString(h[:]), nil
+	b32 := base32.StdEncoding.EncodeToString(h[:])
+	return strings.ToLower(strings.TrimRight(b32, "=")), nil
 }
 
 func SetKID(key jwk.Key) error {
