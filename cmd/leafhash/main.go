@@ -1,3 +1,10 @@
+/*
+This tool calculates a certificate's embedded SCTs leaf hashes such that they
+can be used in /ct/v1/get-proof-by-hash queries (see [RFC 6962]). The tool
+outputs the leaf hashes in JSON encoding for "log" claim of endorsements.
+
+[RFC 6962]: https://www.rfc-editor.org/rfc/rfc6962
+*/
 package main
 
 import (

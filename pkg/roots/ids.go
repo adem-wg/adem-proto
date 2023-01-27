@@ -18,9 +18,13 @@ var ErrUnknownLog = errors.New("unknown log")
 const log_list_google = "https://www.gstatic.com/ct/log_list/v3/log_list.json"
 const log_list_apple = "https://valid.apple.com/ct/log_list/current_log_list.json"
 
+// Map that stores Certificate Transparency log info associated to their IDs.
 var ctLogs map[string]CTLog = make(map[string]CTLog)
+
+// [ctLogs] access lock.
 var logMapLock sync.Mutex = sync.Mutex{}
 
+// Get the log client associate to a CT log ID.
 func GetLogClient(id string) (*client.LogClient, error) {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
@@ -32,6 +36,7 @@ func GetLogClient(id string) (*client.LogClient, error) {
 	return client.New(log.Url, http.DefaultClient, jsonclient.Options{PublicKeyDER: log.Key.raw})
 }
 
+// Partial JSON scheme of [log_list_google] and [log_list_apple].
 type KnownLogs struct {
 	Operators []Operator `json:"operators"`
 }
@@ -46,10 +51,12 @@ type CTLog struct {
 	Url string `json:"url"`
 }
 
+// Wrapper type for JSON unmarshalling of CT log public keys.
 type LogKey struct {
 	raw []byte
 }
 
+// Decodes a base64-encoded JSON string into a CT log public key.
 func (k *LogKey) UnmarshalJSON(bs []byte) (err error) {
 	if raw, e := util.B64Dec(bytes.Trim(bs, `"`)); e != nil {
 		err = e
@@ -59,6 +66,7 @@ func (k *LogKey) UnmarshalJSON(bs []byte) (err error) {
 	return
 }
 
+// Load logs from a given log list.
 func fetchLogs(url string) error {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
@@ -89,10 +97,12 @@ func fetchLogs(url string) error {
 	return nil
 }
 
+// Load logs known to Google.
 func FetchGoogleKnownLogs() error {
 	return fetchLogs(log_list_google)
 }
 
+// Load logs known to Apple.
 func FetchAppleKnownLogs() error {
 	return fetchLogs(log_list_apple)
 }

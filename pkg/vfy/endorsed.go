@@ -22,7 +22,6 @@ func verifyEndorsed(root *ADEMToken, endorsements []*ADEMToken) []VerificationRe
 		} else if root.VerificationKID != endorsedKID {
 			continue
 		} else {
-			// TODO: Check log setup
 			// TODO: Check constraints
 			existsEndorsement = true
 		}

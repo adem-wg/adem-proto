@@ -19,13 +19,20 @@ var ErrNoKeyFound = errors.New("no key found")
 var ErrRootKeyUnbound = errors.New("root key not properly committed")
 var ErrAlgsDiffer = errors.New("jws alg and verification key alg are different")
 
+// A struct that implements the [jwt.KeyProvider] interface.
 type keyManager struct {
-	lock      sync.Mutex
-	init      sync.WaitGroup
-	keys      map[string]jwk.Key
+	// Lock for map access
+	lock sync.Mutex
+	// Wait group that will be done once all verification threads obtained a
+	// promise for their verification key.
+	init sync.WaitGroup
+	// Maps KIDs to keys. Only contains verified keys.
+	keys map[string]jwk.Key
+	// Promises waiting for keys.
 	listeners map[string][]util.Promise[jwk.Key]
 }
 
+// Creates a new key manager to verify [numThreads]-many tokens asynchronously.
 func NewKeyManager(numThreads int) *keyManager {
 	var km keyManager
 	km.init.Add(numThreads)
@@ -34,10 +41,13 @@ func NewKeyManager(numThreads int) *keyManager {
 	return &km
 }
 
+// Wait until all verification threads obtained a promise for their verification
+// key.
 func (km *keyManager) waitForInit() {
 	km.init.Wait()
 }
 
+// Cancel any further verification.
 func (km *keyManager) killListeners() {
 	km.lock.Lock()
 	defer km.lock.Unlock()
@@ -50,6 +60,7 @@ func (km *keyManager) killListeners() {
 	}
 }
 
+// How many blocked threads are there that wait for a key promise to be resolved?
 func (km *keyManager) waiting() int {
 	km.lock.Lock()
 	defer km.lock.Unlock()
@@ -61,6 +72,7 @@ func (km *keyManager) waiting() int {
 	return sum
 }
 
+// Store a verified key and notify listeners waiting for that key.
 func (km *keyManager) put(k jwk.Key) bool {
 	km.lock.Lock()
 	defer km.lock.Unlock()
@@ -92,6 +104,7 @@ func (km *keyManager) put(k jwk.Key) bool {
 	return true
 }
 
+// Get a key based on its [kid]. Returns a promise that may already be resolved.
 func (km *keyManager) get(kid string) util.Promise[jwk.Key] {
 	km.lock.Lock()
 	defer km.lock.Unlock()
@@ -106,6 +119,10 @@ func (km *keyManager) get(kid string) util.Promise[jwk.Key] {
 	return c
 }
 
+// Implements the [jwt.KeyManager] interface. If the token includes a root key,
+// the root key commitment will be verified, and when this succeeds, the root
+// key will be used for verification. All other keys will register a listener
+// and wait for their verification key to be verified externally.
 func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, m *jws.Message) error {
 	var promise util.Promise[jwk.Key]
 	var err error

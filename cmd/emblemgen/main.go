@@ -1,3 +1,6 @@
+/*
+This tool generates and signs ADEM tokens (emblems and endorsements).
+*/
 package main
 
 import (

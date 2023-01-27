@@ -1,3 +1,10 @@
+/*
+This tool takes a public key as argument and calculates its KID using its
+canonical JSON representation and SHA256. It prints the key in JWK JSON
+serialization (see [RFC 7517]) to stdout.
+
+[RFC 7517]: https://www.rfc-editor.org/rfc/rfc7517
+*/
 package main
 
 import (

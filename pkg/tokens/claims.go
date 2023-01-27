@@ -13,22 +13,28 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
+// Register JWT fields of emblems for easier parsing.
 func init() {
 	jwt.RegisterCustomField("log", []*LogConfig{})
 	jwt.RegisterCustomField("key", EmbeddedKey{})
 }
 
+// Struct that represents an identifying log binding.
 type LogConfig struct {
 	Ver  string   `json:"ver"`
 	Id   string   `json:"id"`
 	Hash LeafHash `json:"hash"`
 }
 
+// Wrapper type for easier JSON unmarshalling of base64-encoded JSON strings of
+// leaf hashes.
 type LeafHash struct {
 	B64 string
 	Raw []byte
 }
 
+// Attempt to parse a JSON value as string that contains a base64-encoded leaf
+// hash.
 func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
 	trimmed := bytes.Trim(bs, `"`)
 	if raw, e := util.B64Dec(trimmed); e != nil {
@@ -44,10 +50,13 @@ func (h *LeafHash) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, h.B64)), nil
 }
 
+// Wrapper type to parse "key" field as [jwk.Key].
 type EmbeddedKey struct {
 	Key jwk.Key
 }
 
+// Attempt to parse a JSON value as string that contains a single JWK in JSON
+// encoding.
 func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
 	trimmed := bytes.Trim(bs, `"`)
 	if k, e := jwk.ParseKey(trimmed); e != nil {
@@ -66,6 +75,7 @@ var ErrIllegalType = jwt.NewValidationError(errors.New("illegal claim type"))
 // TODO: Validate ass/emb.ass claims
 // TODO: Be more strict with type assertions
 
+// Validation function for emblem tokens.
 var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
 	if err := validateCommon(t); err != nil {
 		return err
@@ -74,6 +84,7 @@ var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt
 	return nil
 })
 
+// Validation function for endorsement tokens.
 var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
 	if err := validateCommon(t); err != nil {
 		return err
@@ -90,6 +101,7 @@ var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token
 	return nil
 })
 
+// Validate that an OI has the form https://DOMAINNAME.
 func validateOI(oi string) error {
 	if oi == "" {
 		return nil
@@ -99,12 +111,14 @@ func validateOI(oi string) error {
 	if err != nil {
 		return errors.New("could not parse OI")
 	}
+	// TODO: verify that there is only one wildcard, and only in the leftmost label.
 	if url.Scheme != "https" || url.Host == "" || url.Opaque != "" || url.User != nil || url.RawPath != "" || url.RawQuery != "" || url.RawFragment != "" {
 		return errors.New("illegal OI")
 	}
 	return nil
 }
 
+// Validate claims shared by emblems and endorsements.
 func validateCommon(t jwt.Token) jwt.ValidationError {
 	if err := jwt.Validate(t); err != nil {
 		return err.(jwt.ValidationError)
@@ -131,6 +145,7 @@ func validateCommon(t jwt.Token) jwt.ValidationError {
 	return nil
 }
 
+// Validate emblem constraints.
 func validateConstraints(details map[string]interface{}) jwt.ValidationError {
 	prps, ok := details["prp"]
 	if ok {

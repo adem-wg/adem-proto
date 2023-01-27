@@ -15,6 +15,8 @@ import (
 var ErrNoEndorsedKey = errors.New("no endorsed key present")
 var ErrAlgMissing = errors.New("input key misses algorithm")
 
+// Get the KID of a key endorsed in an emblem. If the endorsed key has no KID,
+// it will be calculated.
 func GetEndorsedKID(t jwt.Token) (string, error) {
 	if jwKey, ok := t.Get("key"); !ok {
 		return "", ErrNoEndorsedKey
@@ -25,6 +27,7 @@ func GetEndorsedKID(t jwt.Token) (string, error) {
 	}
 }
 
+// Get a key's KID. If it has no KID, it will be calculated.
 func GetKID(key jwk.Key) (string, error) {
 	if key.KeyID() != "" {
 		return key.KeyID(), nil
@@ -33,6 +36,8 @@ func GetKID(key jwk.Key) (string, error) {
 	return CalcKID(key)
 }
 
+// Calculate a key's KID by hashing it using a canonical JSON representation and
+// SHA256. This function will drop any private-key parameters.
 func CalcKID(key jwk.Key) (string, error) {
 	if pk, err := key.PublicKey(); err != nil {
 		return "", err
@@ -53,6 +58,7 @@ func CalcKID(key jwk.Key) (string, error) {
 	}
 }
 
+// Set a key's KID if not already present.
 func SetKID(key jwk.Key) error {
 	if kid, err := GetKID(key); err != nil {
 		return err

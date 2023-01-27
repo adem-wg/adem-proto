@@ -1,3 +1,9 @@
+/*
+This tool will read a number of newline seperated tokens in JWS compact
+serialization (see [RFC 7515]) and attempt to verify them as ADEM tokens.
+
+[RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515
+*/
 package main
 
 import (

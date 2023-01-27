@@ -1,3 +1,8 @@
+/*
+This tool reads JSON from stdin, attempts to parse it as "log" claim of
+endorsements, and verifies that the given public key is correctly committed to
+the given OI in the logs.
+*/
 package main
 
 import (

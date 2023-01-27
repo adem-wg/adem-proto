@@ -1,3 +1,7 @@
+/*
+This file implements the checking of root key commitments for the Certificate
+Transparency API in v1.
+*/
 package roots
 
 import (
@@ -24,6 +28,8 @@ var ErrCertNotForIss = errors.New("certificate is not valid for issuer OI")
 var ErrCertNotForKey = errors.New("certificate is not valid for key")
 var ErrWrongEntryType = errors.New("do not recognize entry type")
 
+// Verify that the rootKey is correctly bound to the issuer OI by the CT entry
+// identified by hash. Queries will be made to the given CT client.
 func VerifyBinding(cl *client.LogClient, hash []byte, issuer string, rootKey jwk.Key) error {
 	kid, err := tokens.CalcKID(rootKey)
 	if err != nil {
