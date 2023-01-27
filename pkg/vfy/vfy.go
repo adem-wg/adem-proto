@@ -1,8 +1,8 @@
 package vfy
 
 import (
+	"errors"
 	"log"
-	"sync"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
@@ -46,45 +46,76 @@ const SIGNED_TRUSTED VerificationResult = 5
 const ORGANIZATIONAL_TRUSTED VerificationResult = 6
 const ENDORSED_TRUSTED VerificationResult = 7
 
-func vfyTokenAsync(rawToken []byte, km *keyManager, results chan *ADEMToken, wg *sync.WaitGroup) {
-	defer wg.Done()
+var ErrTokenNonCompact = errors.New("token is not in compact serialization")
 
-	msg, err := jws.Parse(rawToken)
-	if err != nil {
-		return
-	}
+type TokenVerificationResult struct {
+	token *ADEMToken
+	err   error
+}
+
+func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationResult) {
+	result := TokenVerificationResult{}
+	defer func() { results <- &result }()
+
 	jwtT, err := jwt.Parse(rawToken, jwt.WithKeyProvider(km))
 	if err != nil {
-		log.Printf("verification failure: %s", err)
+		result.err = err
 		return
 	}
-	k, ok := jwtT.Get("key")
-	if ok {
-		km.put(k.(tokens.EmbeddedKey).Key)
-	}
-	ademT, err := MkADEMToken(msg.Signatures()[0].ProtectedHeaders(), jwtT)
-	if err != nil {
+
+	if msg, err := jws.Parse(rawToken); err != nil {
+		result.err = err
 		return
+	} else if len(msg.Signatures()) > 1 {
+		result.err = ErrTokenNonCompact
+		return
+	} else if ademT, err := MkADEMToken(msg.Signatures()[0].ProtectedHeaders(), jwtT); err != nil {
+		result.err = err
+		return
+	} else {
+		result.token = ademT
 	}
-	results <- ademT
 }
 
 func VerifyTokens(rawTokens [][]byte) []VerificationResult {
-	var wg sync.WaitGroup
-	wg.Add(len(rawTokens))
-	km := NewKeyManager()
-	ts := make(chan *ADEMToken)
+	threadCount := util.NewThreadCount(len(rawTokens))
+	km := NewKeyManager(len(rawTokens))
+	results := make(chan *TokenVerificationResult)
 	for _, rawToken := range rawTokens {
-		go vfyTokenAsync(rawToken, km, ts, &wg)
+		go vfyToken(rawToken, km, results)
 	}
-	go func() {
-		wg.Wait()
-		close(ts)
-	}()
+
+	km.waitForInit()
+
+	ts := []*ADEMToken{}
+	for {
+		if waiting := km.waiting(); waiting > 0 && waiting == threadCount.Running() {
+			km.killListeners()
+		} else if result := <-results; result == nil {
+			// All threads terminated
+			break
+		} else {
+			threadCount.Done()
+			if threadCount.Running() == 0 {
+				close(results)
+			}
+
+			if result.err != nil {
+				log.Printf("discarding invalid token: %s", result.err)
+			} else {
+				ts = append(ts, result.token)
+				if k, ok := result.token.Token.Get("key"); ok {
+					km.put(k.(tokens.EmbeddedKey).Key)
+				}
+			}
+		}
+	}
+
+	threadCount.Wait()
 
 	var emblem *ADEMToken
 	endorsements := []*ADEMToken{}
-	for t := range ts {
+	for _, t := range ts {
 		if t.Headers.ContentType() == string(consts.EmblemCty) {
 			if emblem != nil {
 				// Multiple emblems
@@ -115,11 +146,11 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 		return []VerificationResult{INVALID}
 	}
 
-	results, root := verifySignedOrganizational(emblem, endorsements)
-	if util.Contains(results, INVALID) {
-		return results
+	vfyResults, root := verifySignedOrganizational(emblem, endorsements)
+	if util.Contains(vfyResults, INVALID) {
+		return vfyResults
 	}
 
 	endorsedResults := verifyEndorsed(root, endorsements)
-	return append(results, endorsedResults...)
+	return append(vfyResults, endorsedResults...)
 }

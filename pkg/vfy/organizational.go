@@ -45,7 +45,6 @@ func verifySignedOrganizational(emblem *ADEMToken, endorsements []*ADEMToken) ([
 	if emblem.Token.Issuer() != "" && !rootLogged {
 		return []VerificationResult{INVALID}, nil
 	} else if rootLogged {
-		// TODO: Check log configuration
 		results = append(results, ORGANIZATIONAL)
 	}
 	return results, root

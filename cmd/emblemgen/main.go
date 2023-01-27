@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
@@ -37,5 +38,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("%s\n", string(signedToken))
+	fmt.Println(string(signedToken))
 }

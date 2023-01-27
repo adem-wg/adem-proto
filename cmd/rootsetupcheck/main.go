@@ -39,7 +39,7 @@ func main() {
 		} else {
 			results := roots.VerifyBindingCerts(iss, pk, logs)
 			for _, r := range results {
-				if r.Result {
+				if r.Ok {
 					log.Printf("root key correctly committed to log:\n\t%s", r.LogID)
 				} else {
 					log.Printf("could not verify log: %s", r.LogID)
