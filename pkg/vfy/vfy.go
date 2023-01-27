@@ -85,9 +85,7 @@ func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationRe
 func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	// We maintain a thread count for termination purposes. It might be that we
 	// cannot verify all token's verification key and must cancel verification.
-	// While [threadCount] is thread-safe, it will be only accessed within this
-	// function.
-	threadCount := util.NewThreadCount(len(rawTokens))
+	threadCount := len(rawTokens)
 	km := NewKeyManager(len(rawTokens))
 	results := make(chan *TokenVerificationResult)
 	// Start verification threads
@@ -102,12 +100,12 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	for {
 		// [waiting] is the number of unresolved promises in the key manager, i.e.,
 		// blocked threads that wait for a verification key.
-		// [threadCount.Running()] is the number of threads that could still provide
+		// [threadCount] is the number of threads that could still provide
 		// a new verification key in the [results] channel.
 		// If there are as many waiting threads as threads that could result in a
 		// new verification, we miss verification keys and verification will be
 		// aborted.
-		if waiting := km.waiting(); waiting > 0 && waiting == threadCount.Running() {
+		if waiting := km.waiting(); waiting > 0 && waiting == threadCount {
 			km.killListeners()
 		} else if result := <-results; result == nil {
 			// All threads have terminated
@@ -115,10 +113,10 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 		} else {
 			// We got a new non-nil result from <-results, and hence, one thread must
 			// have terminated. Decrement the counter accordingly.
-			threadCount.Done()
+			threadCount -= 1
 			// Every call to [vfyToken] will write exactly one result. Hence, only
 			// close the [results] channel, when all threads have terminated.
-			if threadCount.Running() == 0 {
+			if threadCount == 0 {
 				close(results)
 			}
 
@@ -132,13 +130,6 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 			}
 		}
 	}
-
-	// Wait for all threads to terminate. This is technically redundant, as we
-	// can only be here when nil was read from the [results] channel, which can
-	// only happen when the channel was closed, which can only happen when
-	// [threadCount.Running() == 0], however, we keep this line as a safeguard
-	// for future changes.
-	threadCount.Wait()
 
 	var emblem *ADEMToken
 	endorsements := []*ADEMToken{}
