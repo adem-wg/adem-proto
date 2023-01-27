@@ -17,6 +17,7 @@ var skeyPEM bool
 var protoPath string
 var publicKeyPath string
 var publicKeyPEM bool
+var publicKeyAlg string
 var SetVerifyJWK bool
 
 func AddSigningArgs() {
@@ -31,6 +32,7 @@ func AddSigningArgs() {
 func AddPublicKeyArgs() {
 	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public key (for endorsements or verification)")
 	flag.BoolVar(&publicKeyPEM, "pk-pem", true, "public key is PEM")
+	flag.StringVar(&publicKeyAlg, "pk-alg", "", "public key alg (if omitted, will use -alg)")
 }
 
 func LoadAlg() *jwa.SignatureAlgorithm {
@@ -43,6 +45,19 @@ func LoadAlg() *jwa.SignatureAlgorithm {
 		}
 	}
 	log.Fatal("alg does not exist")
+	return nil
+}
+
+func LoadPKAlg() *jwa.SignatureAlgorithm {
+	if publicKeyAlg == "" {
+		return LoadAlg()
+	}
+	for _, a := range jwa.SignatureAlgorithms() {
+		if a.String() == publicKeyAlg {
+			return &a
+		}
+	}
+	log.Fatal("pk-alg does not exist")
 	return nil
 }
 

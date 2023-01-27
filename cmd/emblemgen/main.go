@@ -30,6 +30,7 @@ func main() {
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
 			endorseKey,
+			args.LoadPKAlg(),
 		)
 	}
 

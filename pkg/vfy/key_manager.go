@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -31,7 +31,7 @@ func (km *keyManager) put(k jwk.Key) {
 	defer km.mu.Unlock()
 
 	if k.KeyID() == "" {
-		err := util.SetKID(k)
+		err := tokens.SetKID(k)
 		if err != nil {
 			return
 		}

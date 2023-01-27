@@ -9,7 +9,7 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/roots"
-	"github.com/adem-wg/adem-proto/pkg/vfy"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
 func init() {
@@ -33,7 +33,7 @@ func main() {
 	} else if err := roots.FetchAppleKnownLogs(); err != nil {
 		log.Fatalf("could not fetch Apple known CT logs: %s", err)
 	} else {
-		logs := []*vfy.LogConfig{}
+		logs := []*tokens.LogConfig{}
 		if err := json.Unmarshal(bs, &logs); err != nil {
 			log.Fatalf("could not decode json: %s", err)
 		} else {

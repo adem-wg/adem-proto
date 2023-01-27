@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/tls"
@@ -23,12 +24,7 @@ var ErrCertNotForKey = errors.New("certificate is not valid for key")
 var ErrWrongEntryType = errors.New("do not recognize entry type")
 
 func VerifyBinding(id string, hash []byte, issuer string, rootKey jwk.Key) error {
-	pk, err := rootKey.PublicKey()
-	if err != nil {
-		log.Print("could not get public key from root key")
-		return err
-	}
-	kid, err := util.CalcKID(pk)
+	kid, err := tokens.CalcKID(rootKey)
 	if err != nil {
 		log.Print("could not calculate KID")
 		return err

@@ -3,7 +3,7 @@ package vfy
 import (
 	"errors"
 
-	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
@@ -19,7 +19,7 @@ func MkADEMToken(hs jws.Headers, t jwt.Token) (*ADEMToken, error) {
 	var err error
 	jwKey := hs.JWK()
 	if jwKey != nil {
-		kid, err = util.GetKID(hs.JWK())
+		kid, err = tokens.GetKID(hs.JWK())
 	} else {
 		kid = hs.KeyID()
 	}

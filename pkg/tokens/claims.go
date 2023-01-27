@@ -1,15 +1,22 @@
-package vfy
+package tokens
 
 import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
+
+func init() {
+	jwt.RegisterCustomField("log", []*LogConfig{})
+	jwt.RegisterCustomField("key", EmbeddedKey{})
+}
 
 type LogConfig struct {
 	Ver  string   `json:"ver"`
@@ -33,8 +40,22 @@ func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
 	return
 }
 
-func init() {
-	jwt.RegisterCustomField("log", []LogConfig{})
+func (h *LeafHash) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`, h.B64)), nil
+}
+
+type EmbeddedKey struct {
+	Key jwk.Key
+}
+
+func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
+	trimmed := bytes.Trim(bs, `"`)
+	if k, e := jwk.ParseKey(trimmed); e != nil {
+		err = e
+	} else {
+		ek.Key = k
+	}
+	return
 }
 
 var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))

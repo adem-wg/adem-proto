@@ -5,7 +5,7 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -39,7 +39,9 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, s
 	verifKey, err := signingKey.PublicKey()
 	if err != nil {
 		return nil, err
-	} else if err := util.SetKID(verifKey); err != nil {
+	} else if err := tokens.SetKID(verifKey); err != nil {
+		return nil, err
+	} else if err := verifKey.Set("alg", alg.String()); err != nil {
 		return nil, err
 	}
 

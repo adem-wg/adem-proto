@@ -3,13 +3,13 @@ package vfy
 import (
 	"log"
 
-	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
 func verifyEndorsed(root *ADEMToken, endorsements []*ADEMToken) []VerificationResult {
 	existsEndorsement := false
 	for _, endorsement := range endorsements {
-		endorsedKID, err := util.GetEndorsedKID(endorsement.Token)
+		endorsedKID, err := tokens.GetEndorsedKID(endorsement.Token)
 		if err != nil {
 			log.Printf("could not not get endorsed kid: %s\n", err)
 			continue

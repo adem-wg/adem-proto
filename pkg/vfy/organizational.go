@@ -3,13 +3,13 @@ package vfy
 import (
 	"log"
 
-	"github.com/adem-wg/adem-proto/pkg/util"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
 func verifySignedOrganizational(emblem *ADEMToken, endorsements []*ADEMToken) ([]VerificationResult, *ADEMToken) {
 	endorsedBy := make(map[string]*ADEMToken)
 	for _, endorsement := range endorsements {
-		kid, err := util.GetEndorsedKID(endorsement.Token)
+		kid, err := tokens.GetEndorsedKID(endorsement.Token)
 		end, _ := endorsement.Token.Get("end")
 		if err != nil {
 			log.Printf("could not get endorsed kid: %s\n", err)

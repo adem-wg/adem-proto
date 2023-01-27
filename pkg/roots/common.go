@@ -4,7 +4,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/adem-wg/adem-proto/pkg/vfy"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
@@ -15,7 +15,7 @@ type VerificationResult struct {
 	Result bool
 }
 
-func VerifyBindingCerts(iss string, key jwk.Key, logs []*vfy.LogConfig) []VerificationResult {
+func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []VerificationResult {
 	verified := []VerificationResult{}
 	for _, logConfig := range logs {
 		if logConfig.Ver != "v1" {

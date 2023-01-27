@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -57,9 +58,9 @@ func vfyTokenAsync(rawToken []byte, km *keyManager, results chan *ADEMToken, wg 
 		log.Printf("verification failure: %s", err)
 		return
 	}
-	k, err := util.GetEndorsedJWK(jwtT)
-	if err == nil {
-		km.put(k)
+	k, ok := jwtT.Get("key")
+	if ok {
+		km.put(k.(tokens.EmbeddedKey).Key)
 	}
 	ademT, err := MkADEMToken(msg.Signatures()[0].ProtectedHeaders(), jwtT)
 	if err != nil {
@@ -72,24 +73,24 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 	var wg sync.WaitGroup
 	wg.Add(len(rawTokens))
 	km := NewKeyManager()
-	tokens := make(chan *ADEMToken)
+	ts := make(chan *ADEMToken)
 	for _, rawToken := range rawTokens {
-		go vfyTokenAsync(rawToken, km, tokens, &wg)
+		go vfyTokenAsync(rawToken, km, ts, &wg)
 	}
 	go func() {
 		wg.Wait()
-		close(tokens)
+		close(ts)
 	}()
 
 	var emblem *ADEMToken
 	endorsements := []*ADEMToken{}
-	for t := range tokens {
+	for t := range ts {
 		if t.Headers.ContentType() == string(consts.EmblemCty) {
 			if emblem != nil {
 				// Multiple emblems
 				log.Print("Token set contains multiple emblems")
 				return []VerificationResult{INVALID}
-			} else if err := jwt.Validate(t.Token, jwt.WithValidator(EmblemValidator)); err != nil {
+			} else if err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EmblemValidator)); err != nil {
 				log.Printf("Invalid emblem: %s", err)
 				return []VerificationResult{INVALID}
 			} else if t.Headers.Algorithm() == jwa.NoSignature {
@@ -98,7 +99,7 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 				emblem = t
 			}
 		} else if t.Headers.ContentType() == string(consts.EndorsementCty) {
-			err := jwt.Validate(t.Token, jwt.WithValidator(EndorsementValidator))
+			err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EndorsementValidator))
 			if err != nil {
 				log.Printf("Invalid endorsement: %s", err)
 			} else {
