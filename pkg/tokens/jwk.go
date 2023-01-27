@@ -35,6 +35,8 @@ func GetKID(key jwk.Key) (string, error) {
 func CalcKID(key jwk.Key) (string, error) {
 	if pk, err := key.PublicKey(); err != nil {
 		return "", err
+	} else if err := pk.Set("alg", key.Algorithm()); err != nil {
+		return "", err
 	} else if err := pk.Remove("kid"); err != nil {
 		return "", err
 	} else if jsonKey, err := json.Marshal(pk); err != nil {
