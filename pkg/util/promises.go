@@ -25,6 +25,7 @@ func NewPromise[T any]() Promise[T] {
 
 func (p *promise[T]) Fulfill(val T) {
 	p.ch <- val
+	close(p.ch)
 }
 
 func (p *promise[T]) Reject() {
