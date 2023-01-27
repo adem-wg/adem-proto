@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/x509"
@@ -33,16 +36,19 @@ func loadCert(path string) (*x509.Certificate, error) {
 	}
 }
 
-func logHash(logId []byte, leaf *ct.MerkleTreeLeaf) error {
+func mkCfg(logId []byte, leaf *ct.MerkleTreeLeaf) (*tokens.LogConfig, error) {
 	if hash, err := ct.LeafHashForLeaf(leaf); err != nil {
-		return err
+		return nil, err
 	} else {
-		logId := base64.StdEncoding.EncodeToString(logId)
-		leafHash := base64.StdEncoding.EncodeToString(hash[:])
-		log.Printf("log ID: %s", logId)
-		log.Printf("|- leaf hash: %s", leafHash)
+		cfg := tokens.LogConfig{
+			Ver: "v1",
+			Id:  base64.StdEncoding.EncodeToString(logId),
+			Hash: tokens.LeafHash{
+				B64: base64.StdEncoding.EncodeToString(hash[:]),
+			},
+		}
+		return &cfg, nil
 	}
-	return nil
 }
 
 func main() {
@@ -62,6 +68,7 @@ func main() {
 	} else if tbs, err := x509.RemoveSCTList(cert.RawTBSCertificate); err != nil {
 		log.Fatalf("could not remove SCT list: %s", err)
 	} else {
+		logs := []*tokens.LogConfig{}
 		for _, serializedSct := range cert.SCTList.SCTList {
 			var sct ct.SignedCertificateTimestamp
 			if _, err := tls.Unmarshal(serializedSct.Val, &sct); err != nil {
@@ -69,17 +76,30 @@ func main() {
 			} else {
 				if issuerCert == nil {
 					leaf := ct.CreateX509MerkleTreeLeaf(ct.ASN1Cert{Data: tbs}, sct.Timestamp)
-					if err := logHash(sct.LogID.KeyID[:], leaf); err != nil {
+					if cfg, err := mkCfg(sct.LogID.KeyID[:], leaf); err != nil {
 						log.Printf("could not calculate leaf hash: %s", err)
+					} else {
+						logs = append(logs, cfg)
 					}
 				} else {
 					if leaf, err := ct.MerkleTreeLeafForEmbeddedSCT([]*x509.Certificate{cert, issuerCert}, sct.Timestamp); err != nil {
 						log.Printf("could not construct precert merkle tree leaf: %s", err)
-					} else if err := logHash(sct.LogID.KeyID[:], leaf); err != nil {
+					} else if cfg, err := mkCfg(sct.LogID.KeyID[:], leaf); err != nil {
 						log.Printf("could not calculate leaf hash: %s", err)
+					} else {
+						logs = append(logs, cfg)
 					}
 				}
 			}
+		}
+
+		if len(logs) == 0 {
+			log.Print("no SCTs found")
+		}
+		if bs, err := json.MarshalIndent(logs, "", "  "); err != nil {
+			log.Fatalf("could not marshal JSON: %s", err)
+		} else {
+			fmt.Printf("%s\n", string(bs))
 		}
 	}
 }
