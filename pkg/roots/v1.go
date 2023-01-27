@@ -11,6 +11,7 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	ct "github.com/google/certificate-transparency-go"
+	"github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -23,7 +24,7 @@ var ErrCertNotForIss = errors.New("certificate is not valid for issuer OI")
 var ErrCertNotForKey = errors.New("certificate is not valid for key")
 var ErrWrongEntryType = errors.New("do not recognize entry type")
 
-func VerifyBinding(id string, hash []byte, issuer string, rootKey jwk.Key) error {
+func VerifyBinding(cl *client.LogClient, hash []byte, issuer string, rootKey jwk.Key) error {
 	kid, err := tokens.CalcKID(rootKey)
 	if err != nil {
 		log.Print("could not calculate KID")
@@ -35,12 +36,6 @@ func VerifyBinding(id string, hash []byte, issuer string, rootKey jwk.Key) error
 		return err
 	} else if issuerUrl.Hostname() == "" {
 		return ErrIssNoHostName
-	}
-
-	cl, err := GetLogClient(id)
-	if err != nil {
-		log.Print("could not get log client")
-		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Minute))

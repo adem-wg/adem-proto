@@ -41,11 +41,13 @@ func main() {
 		} else {
 			results := roots.VerifyBindingCerts(iss, pk, logs)
 			for _, r := range results {
+				var msg string
 				if r.Ok {
-					log.Printf("root key correctly committed to log:\n\t%s", r.LogID)
+					msg = "root key correctly committed to log"
 				} else {
-					log.Printf("could not verify log: %s", r.LogID)
+					msg = "root key commitment verification failed for log"
 				}
+				log.Printf("%s:\n\turl:  %s\n\tname: %s", msg, r.LogURL, r.LogID)
 			}
 		}
 	}

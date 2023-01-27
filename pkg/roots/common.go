@@ -11,8 +11,9 @@ import (
 var ErrNoLogConfig = errors.New("no log claim")
 
 type VerificationResult struct {
-	LogID string
-	Ok    bool
+	LogURL string
+	LogID  string
+	Ok     bool
 }
 
 func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []VerificationResult {
@@ -22,10 +23,14 @@ func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []Ver
 		if logConfig.Ver != "v1" {
 			log.Printf("log %s illegal version", logConfig.Id)
 			result.Ok = false
+		} else if cl, err := GetLogClient(logConfig.Id); err != nil {
+			log.Print("could not get log client")
+			result.Ok = false
 		} else {
-			err := VerifyBinding(logConfig.Id, logConfig.Hash.Raw, iss, key)
+			result.LogURL = cl.BaseURI()
+			err := VerifyBinding(cl, logConfig.Hash.Raw, iss, key)
 			if err != nil {
-				log.Printf("log %s could not verify binding: %s", logConfig.Id, err)
+				log.Printf("not verify binding: %s", err)
 			}
 			result.Ok = err == nil
 		}
