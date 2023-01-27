@@ -39,9 +39,9 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, s
 	verifKey, err := signingKey.PublicKey()
 	if err != nil {
 		return nil, err
-	} else if err := tokens.SetKID(verifKey); err != nil {
-		return nil, err
 	} else if err := verifKey.Set("alg", alg.String()); err != nil {
+		return nil, err
+	} else if err := tokens.SetKID(verifKey); err != nil {
 		return nil, err
 	}
 

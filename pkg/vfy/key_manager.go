@@ -17,6 +17,7 @@ import (
 
 var ErrNoKeyFound = errors.New("no key found")
 var ErrRootKeyUnbound = errors.New("root key not properly committed")
+var ErrAlgsDiffer = errors.New("jws alg and verification key alg are different")
 
 type keyManager struct {
 	lock      sync.Mutex
@@ -140,6 +141,10 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 		return ErrNoKeyFound
 	}
 
-	sink.Key(jwa.SignatureAlgorithm(verificationKey.KeyType()), verificationKey)
+	if verificationKey.Algorithm() != sig.ProtectedHeaders().Algorithm() {
+		return ErrAlgsDiffer
+	}
+
+	sink.Key(jwa.SignatureAlgorithm(verificationKey.Algorithm().String()), verificationKey)
 	return nil
 }

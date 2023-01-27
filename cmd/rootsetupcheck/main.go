@@ -22,6 +22,8 @@ func main() {
 
 	if pk := args.LoadPublicKey(); pk == nil {
 		log.Fatal("no public key to verify")
+	} else if err := pk.Set("alg", args.LoadPKAlg()); err != nil {
+		log.Fatal("could not set public key algorithm")
 	} else if iss := args.OI; iss == "" {
 		log.Fatal("no issuer given")
 	} else if bs, err := io.ReadAll(os.Stdin); err != nil {

@@ -21,9 +21,9 @@ func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, toke
 	endorseKey, err := endorseKey.PublicKey()
 	if err != nil {
 		return nil, nil, err
-	} else if err := tokens.SetKID(endorseKey); err != nil {
-		return nil, nil, err
 	} else if err := endorseKey.Set("alg", pkAlg.String()); err != nil {
+		return nil, nil, err
+	} else if err := tokens.SetKID(endorseKey); err != nil {
 		return nil, nil, err
 	}
 	token.Set("key", endorseKey)

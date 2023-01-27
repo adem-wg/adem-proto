@@ -13,6 +13,7 @@ import (
 )
 
 var ErrNoEndorsedKey = errors.New("no endorsed key present")
+var ErrAlgMissing = errors.New("input key misses algorithm")
 
 func GetEndorsedKID(t jwt.Token) (string, error) {
 	if jwKey, ok := t.Get("key"); !ok {
@@ -35,6 +36,8 @@ func GetKID(key jwk.Key) (string, error) {
 func CalcKID(key jwk.Key) (string, error) {
 	if pk, err := key.PublicKey(); err != nil {
 		return "", err
+	} else if key.Algorithm() == nil || key.Algorithm().String() == "" {
+		return "", ErrAlgMissing
 	} else if err := pk.Set("alg", key.Algorithm()); err != nil {
 		return "", err
 	} else if err := pk.Remove("kid"); err != nil {
