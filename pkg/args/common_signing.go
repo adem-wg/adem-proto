@@ -3,7 +3,6 @@ package args
 import (
 	"flag"
 	"log"
-	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -36,29 +35,23 @@ func AddPublicKeyArgs() {
 }
 
 func LoadAlg() *jwa.SignatureAlgorithm {
-	if alg == "" {
-		log.Fatal("no --alg arg")
+	if a, err := loadAlgByString(alg); err != nil {
+		log.Fatalf("no algorithm found: %s", err)
+		return nil
+	} else {
+		return a
 	}
-	for _, a := range jwa.SignatureAlgorithms() {
-		if a.String() == alg {
-			return &a
-		}
-	}
-	log.Fatal("alg does not exist")
-	return nil
 }
 
 func LoadPKAlg() *jwa.SignatureAlgorithm {
-	if publicKeyAlg == "" {
+	if alg, err := loadAlgByString(publicKeyAlg); err == ErrNoAlg {
 		return LoadAlg()
+	} else if err != nil {
+		log.Fatalf("no algorithm found: %s", err)
+		return nil
+	} else {
+		return alg
 	}
-	for _, a := range jwa.SignatureAlgorithms() {
-		if a.String() == publicKeyAlg {
-			return &a
-		}
-	}
-	log.Fatal("pk-alg does not exist")
-	return nil
 }
 
 func LoadLifetime() int64 {
@@ -66,20 +59,15 @@ func LoadLifetime() int64 {
 }
 
 func LoadPrivateKey() jwk.Key {
-	if skeyFile == "" {
-		log.Fatal("no --skey arg")
+	if ks, err := loadKeys(skeyFile, skeyPEM); err != nil {
+		log.Fatalf("could not load skey: %s", err)
+		return nil
+	} else if k, ok := ks.Key(0); !ok {
+		log.Fatalf("to little or too many keys in file")
+		return nil
+	} else {
+		return k
 	}
-
-	bs, err := os.ReadFile(skeyFile)
-	if err != nil {
-		log.Fatalf("cannot read key file: %s", err)
-	}
-
-	key, err := jwk.ParseKey(bs, jwk.WithPEM(skeyPEM))
-	if err != nil {
-		log.Fatalf("cannot parse key: %s", err)
-	}
-	return key
 }
 
 func LoadClaimsProto() jwt.Token {
@@ -95,23 +83,15 @@ func LoadClaimsProto() jwt.Token {
 }
 
 func LoadPublicKey() jwk.Key {
-	if publicKeyPath == "" {
+	if ks, err := loadKeys(publicKeyPath, publicKeyPEM); err == ErrEmptyPath {
 		return nil
+	} else if err != nil {
+		log.Fatalf("could not load pk: %s", err)
+		return nil
+	} else if k, ok := ks.Key(0); !ok {
+		log.Fatal("too many or too few pk provided in file")
+		return nil
+	} else {
+		return k
 	}
-
-	keySet, err := jwk.ReadFile(publicKeyPath, jwk.WithPEM(publicKeyPEM))
-	if err != nil {
-		log.Fatalf("cannot parse key file: %s", err)
-	}
-
-	if keySet.Len() > 1 {
-		log.Fatalf("key set provided for endorsement")
-	}
-
-	key, ok := keySet.Key(0)
-	if !ok {
-		log.Fatalf("empty key set provided for endorsement")
-	}
-
-	return key
 }
