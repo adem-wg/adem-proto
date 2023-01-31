@@ -59,8 +59,16 @@ func CalcKID(key jwk.Key) (string, error) {
 }
 
 // Set a key's KID if not already present.
-func SetKID(key jwk.Key) error {
-	if kid, err := GetKID(key); err != nil {
+func SetKID(key jwk.Key, force bool) error {
+	var kid string
+	var err error
+	if force {
+		kid, err = CalcKID(key)
+	} else {
+		kid, err = GetKID(key)
+	}
+
+	if err != nil {
 		return err
 	} else {
 		return key.Set("kid", kid)

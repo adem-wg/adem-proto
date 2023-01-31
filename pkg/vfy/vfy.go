@@ -8,6 +8,7 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
@@ -73,7 +74,7 @@ func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationRe
 	} else if len(msg.Signatures()) > 1 {
 		result.err = ErrTokenNonCompact
 		return
-	} else if ademT, err := MkADEMToken(msg.Signatures()[0].ProtectedHeaders(), jwtT); err != nil {
+	} else if ademT, err := MkADEMToken(km, msg.Signatures()[0], jwtT); err != nil {
 		result.err = err
 		return
 	} else {
@@ -82,7 +83,7 @@ func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationRe
 }
 
 // Verify a slice of ADEM tokens.
-func VerifyTokens(rawTokens [][]byte) []VerificationResult {
+func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) []VerificationResult {
 	// We maintain a thread count for termination purposes. It might be that we
 	// cannot verify all token's verification key and must cancel verification.
 	threadCount := len(rawTokens)
@@ -164,11 +165,11 @@ func VerifyTokens(rawTokens [][]byte) []VerificationResult {
 		return []VerificationResult{INVALID}
 	}
 
-	vfyResults, root := verifySignedOrganizational(emblem, endorsements)
+	vfyResults, root := verifySignedOrganizational(emblem, endorsements, trustedKeys)
 	if util.Contains(vfyResults, INVALID) {
 		return vfyResults
 	}
 
-	endorsedResults := verifyEndorsed(root, endorsements)
+	endorsedResults := verifyEndorsed(root, endorsements, trustedKeys)
 	return append(vfyResults, endorsedResults...)
 }

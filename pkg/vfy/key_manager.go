@@ -77,20 +77,24 @@ func (km *keyManager) put(k jwk.Key) bool {
 	km.lock.Lock()
 	defer km.lock.Unlock()
 
-	if k.KeyID() == "" {
-		err := tokens.SetKID(k)
-		if err != nil {
-			return false
-		}
+	kid, err := tokens.GetKID(k)
+	if err != nil {
+		return false
+	} else if fp, err := tokens.CalcKID(k); err != nil {
+		// We set and calculate the KID ID to be consistent with key hashing later
+		// down the line.
+		return false
+	} else if err := k.Set("kid", fp); err != nil {
+		return false
 	}
 
-	_, ok := km.keys[k.KeyID()]
+	_, ok := km.keys[kid]
 	if ok {
 		return false
 	}
 
-	km.keys[k.KeyID()] = k
-	promises := km.listeners[k.KeyID()]
+	km.keys[kid] = k
+	promises := km.listeners[kid]
 	if len(promises) == 0 {
 		return false
 	}
@@ -100,7 +104,7 @@ func (km *keyManager) put(k jwk.Key) bool {
 			promise.Fulfill(k)
 		}
 	}
-	delete(km.listeners, k.KeyID())
+	delete(km.listeners, kid)
 	return true
 }
 
@@ -119,6 +123,16 @@ func (km *keyManager) get(kid string) util.Promise[jwk.Key] {
 	return c
 }
 
+func (km *keyManager) getVerificationKey(sig *jws.Signature) util.Promise[jwk.Key] {
+	if headerKID := sig.ProtectedHeaders().KeyID(); headerKID != "" {
+		return km.get(headerKID)
+	} else if sig.ProtectedHeaders().JWK().KeyID() != "" {
+		return km.get(sig.ProtectedHeaders().JWK().KeyID())
+	} else {
+		return util.Rejected[jwk.Key]()
+	}
+}
+
 // Implements the [jwt.KeyManager] interface. If the token includes a root key,
 // the root key commitment will be verified, and when this succeeds, the root
 // key will be used for verification. All other keys will register a listener
@@ -126,11 +140,11 @@ func (km *keyManager) get(kid string) util.Promise[jwk.Key] {
 func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, m *jws.Message) error {
 	var promise util.Promise[jwk.Key]
 	var err error
-	headerKey := sig.ProtectedHeaders().JWK()
 	if t, e := jwt.Parse(m.Payload(), jwt.WithVerify(false)); e != nil {
 		log.Printf("could not decode payload: %s", e)
 		err = e
 	} else if logs, ok := t.Get("log"); ok {
+		headerKey := sig.ProtectedHeaders().JWK()
 		for _, r := range roots.VerifyBindingCerts(t.Issuer(), headerKey, logs.([]*tokens.LogConfig)) {
 			if !r.Ok {
 				log.Printf("could not verify root key commitment for log ID %s", r.LogID)
@@ -139,14 +153,11 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 			}
 		}
 		if err == nil {
-			promise = util.Resolve(headerKey)
+			km.put(headerKey)
 		}
-	} else if headerKID := sig.ProtectedHeaders().KeyID(); headerKID != "" {
-		promise = km.get(headerKID)
-	} else if headerKey.KeyID() != "" {
-		promise = km.get(headerKey.KeyID())
 	}
 
+	promise = km.getVerificationKey(sig)
 	km.init.Done()
 	if err != nil {
 		log.Printf("err: %s", err)

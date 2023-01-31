@@ -23,7 +23,7 @@ func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, toke
 		return nil, nil, err
 	} else if err := endorseKey.Set("alg", pkAlg.String()); err != nil {
 		return nil, nil, err
-	} else if err := tokens.SetKID(endorseKey); err != nil {
+	} else if err := tokens.SetKID(endorseKey, false); err != nil {
 		return nil, nil, err
 	}
 	token.Set("key", endorseKey)

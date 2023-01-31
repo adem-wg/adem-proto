@@ -3,31 +3,21 @@ package vfy
 import (
 	"errors"
 
-	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 type ADEMToken struct {
-	VerificationKID string
+	VerificationKey jwk.Key
 	Headers         jws.Headers
 	Token           jwt.Token
 }
 
-func MkADEMToken(hs jws.Headers, t jwt.Token) (*ADEMToken, error) {
-	var kid string
-	var err error
-	jwKey := hs.JWK()
-	if jwKey != nil {
-		kid, err = tokens.GetKID(hs.JWK())
-	} else {
-		kid = hs.KeyID()
+func MkADEMToken(km *keyManager, sig *jws.Signature, t jwt.Token) (*ADEMToken, error) {
+	verifKey := km.getVerificationKey(sig).Get()
+	if verifKey == nil {
+		return nil, errors.New("no verification key")
 	}
-	if err != nil {
-		return nil, err
-	}
-	if kid == "" {
-		return nil, errors.New("no kid")
-	}
-	return &ADEMToken{kid, hs, t}, nil
+	return &ADEMToken{verifKey, sig.ProtectedHeaders(), t}, nil
 }

@@ -37,8 +37,14 @@ func (p *promise[T]) Get() T {
 }
 
 // Return a promise that is already fullfilled with the given value.
-func Resolve[T any](val T) Promise[T] {
+func Fullfilled[T any](val T) Promise[T] {
 	p := NewPromise[T]()
 	p.Fulfill(val)
+	return p
+}
+
+func Rejected[T any]() Promise[T] {
+	p := NewPromise[T]()
+	p.Reject()
 	return p
 }

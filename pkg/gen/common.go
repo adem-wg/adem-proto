@@ -41,7 +41,7 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, s
 		return nil, err
 	} else if err := verifKey.Set("alg", alg.String()); err != nil {
 		return nil, err
-	} else if err := tokens.SetKID(verifKey); err != nil {
+	} else if err := tokens.SetKID(verifKey, false); err != nil {
 		return nil, err
 	}
 
