@@ -9,13 +9,9 @@ type Version string
 
 const V1 Version = "v1"
 
-type Distribution string
+const UDP string = "udp"
+const DNS string = "dns"
+const TLS string = "tls"
 
-const UDP Distribution = "udp"
-const DNS Distribution = "dns"
-const TLS Distribution = "tls"
-
-type Purpose string
-
-const Protective Purpose = "protective"
-const Indicative Purpose = "indicative"
+const Protective string = "protective"
+const Indicative string = "indicative"

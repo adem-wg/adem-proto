@@ -3,11 +3,12 @@ package tokens
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"net/url"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
+	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -17,6 +18,97 @@ import (
 func init() {
 	jwt.RegisterCustomField("log", []*LogConfig{})
 	jwt.RegisterCustomField("key", EmbeddedKey{})
+	jwt.RegisterCustomField("ass", []*ident.AI{})
+	jwt.RegisterCustomField("emb", EmblemConstraints{})
+}
+
+var ErrIllegalConst = errors.New("json element is illegal constant")
+
+type PurposeMask byte
+
+const Protective PurposeMask = 0b0000_0001
+const Indicative PurposeMask = 0b0000_0010
+
+func (pm *PurposeMask) UnmarshalJSON(in []byte) error {
+	var prps []string
+	var mask PurposeMask
+	if err := json.Unmarshal(in, &prps); err != nil {
+		return err
+	} else {
+		for _, prp := range prps {
+			switch prp {
+			case consts.Protective:
+				mask |= Protective
+			case consts.Indicative:
+				mask |= Indicative
+			default:
+				return ErrIllegalConst
+			}
+		}
+	}
+	*pm = mask
+	return nil
+}
+
+func (pm *PurposeMask) MarshalJSON() ([]byte, error) {
+	var purposes []string
+	if *pm&Protective != 0 {
+		purposes = append(purposes, consts.Protective)
+	}
+	if *pm&Indicative != 0 {
+		purposes = append(purposes, consts.Indicative)
+	}
+	return json.Marshal(purposes)
+}
+
+type ChannelMask byte
+
+const DNS ChannelMask = 0b0000_0001
+const TLS ChannelMask = 0b0000_0010
+const UDP ChannelMask = 0b0000_0100
+
+func (cm *ChannelMask) UnmarshalJSON(bs []byte) error {
+	var dsts []string
+	var mask ChannelMask
+	if err := json.Unmarshal(bs, &dsts); err != nil {
+		return err
+	} else {
+		for _, dst := range dsts {
+			switch dst {
+			case consts.DNS:
+				mask |= DNS
+			case consts.TLS:
+				mask |= TLS
+			case consts.UDP:
+				mask |= UDP
+			default:
+				return ErrIllegalConst
+			}
+		}
+	}
+	*cm = mask
+	return nil
+}
+
+func (cm *ChannelMask) MarshalJSON() ([]byte, error) {
+	var dsts []string
+	if *cm&DNS != 0 {
+		dsts = append(dsts, consts.DNS)
+	}
+	if *cm&TLS != 0 {
+		dsts = append(dsts, consts.TLS)
+	}
+	if *cm&UDP != 0 {
+		dsts = append(dsts, consts.UDP)
+	}
+	return json.Marshal(dsts)
+}
+
+type EmblemConstraints struct {
+	Purpose      *PurposeMask `json:"prp,omitempty"`
+	Distribution *ChannelMask `json:"dst,omitempty"`
+	Assets       []*ident.AI  `json:"ass,omitempty"`
+	Window       *int         `json:"wnd,omitempty"`
 }
 
 // Struct that represents an identifying log binding.
@@ -47,7 +139,7 @@ func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
 }
 
 func (h *LeafHash) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`"%s"`, h.B64)), nil
+	return json.Marshal(h.B64)
 }
 
 // Wrapper type to parse "key" field as [jwk.Key].
@@ -68,17 +160,17 @@ func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
 }
 
 var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))
-var ErrIllegalPrp = jwt.NewValidationError(errors.New("illegal prp claim"))
-var ErrIllegalDst = jwt.NewValidationError(errors.New("illegal dst claim"))
 var ErrIllegalType = jwt.NewValidationError(errors.New("illegal claim type"))
-
-// TODO: Validate ass/emb.ass claims
-// TODO: Be more strict with type assertions
+var ErrAssMissing = jwt.NewValidationError(errors.New("emblems require ass claim"))
 
 // Validation function for emblem tokens.
 var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
 	if err := validateCommon(t); err != nil {
 		return err
+	}
+
+	if _, ok := t.Get("ass"); !ok {
+		return ErrAssMissing
 	}
 
 	return nil
@@ -111,7 +203,6 @@ func validateOI(oi string) error {
 	if err != nil {
 		return errors.New("could not parse OI")
 	}
-	// TODO: verify that there is only one wildcard, and only in the leftmost label.
 	if url.Scheme != "https" || url.Host == "" || url.Opaque != "" || url.User != nil || url.RawPath != "" || url.RawQuery != "" || url.RawFragment != "" {
 		return errors.New("illegal OI")
 	}
@@ -130,39 +221,6 @@ func validateCommon(t jwt.Token) jwt.ValidationError {
 
 	if validateOI(t.Issuer()) != nil {
 		return jwt.ErrInvalidIssuer()
-	}
-
-	if cnstrs, ok := t.Get(`emb`); ok {
-		mcnstrs, ok := cnstrs.(map[string]interface{})
-		if !ok {
-			return ErrIllegalType
-		}
-		if err := validateConstraints(mcnstrs); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Validate emblem constraints.
-func validateConstraints(details map[string]interface{}) jwt.ValidationError {
-	prps, ok := details["prp"]
-	if ok {
-		for _, prp := range prps.([]interface{}) {
-			if prp.(string) != string(consts.Protective) && prp.(string) != string(consts.Indicative) {
-				return ErrIllegalPrp
-			}
-		}
-	}
-
-	dsts, ok := details["dst"]
-	if ok {
-		for _, dst := range dsts.([]interface{}) {
-			if dst.(string) != string(consts.DNS) && dst.(string) != string(consts.TLS) && dst.(string) != string(consts.UDP) {
-				return ErrIllegalDst
-			}
-		}
 	}
 
 	return nil
