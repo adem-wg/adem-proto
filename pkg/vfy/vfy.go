@@ -1,6 +1,7 @@
 package vfy
 
 import (
+	"context"
 	"errors"
 	"log"
 
@@ -88,6 +89,13 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) []VerificationResult 
 	// cannot verify all token's verification key and must cancel verification.
 	threadCount := len(rawTokens)
 	km := NewKeyManager(len(rawTokens))
+	// Put trusted public keys into key manager. This allows for termination for
+	// tokens without issuer.
+	ctx := context.TODO()
+	iter := trustedKeys.Keys(ctx)
+	for iter.Next(ctx) {
+		km.put(iter.Pair().Value.(jwk.Key))
+	}
 	results := make(chan *TokenVerificationResult)
 	// Start verification threads
 	for _, rawToken := range rawTokens {
