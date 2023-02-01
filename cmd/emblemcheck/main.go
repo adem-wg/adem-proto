@@ -12,7 +12,6 @@ import (
 	"flag"
 	"io"
 	"log"
-	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/roots"
@@ -35,7 +34,11 @@ func main() {
 		log.Fatalf("could not fetch Apple known CT logs: %s", err)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
+	file := args.LoadTokensFile()
+	if file != nil {
+		defer file.Close()
+	}
+	reader := bufio.NewReader(file)
 	lines := [][]byte{}
 	for {
 		line, err := reader.ReadBytes('\n')

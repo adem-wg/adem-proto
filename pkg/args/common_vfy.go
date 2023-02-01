@@ -3,6 +3,7 @@ package args
 import (
 	"flag"
 	"log"
+	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -15,6 +16,7 @@ var EI string
 var trustedKeyPath string
 var trustedKeyPEM bool
 var trustedKeyAlg string
+var tokensFilePath string
 
 func AddVerificationArgs() {
 	flag.BoolVar(&CTProviderGoogle, "google", true, "trust CT logs known to Google")
@@ -24,6 +26,7 @@ func AddVerificationArgs() {
 	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
 	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
+	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
 }
 
 func LoadTrustedKeys() jwk.Set {
@@ -45,5 +48,16 @@ func LoadTrustedKeysAlg() *jwa.SignatureAlgorithm {
 		return nil
 	} else {
 		return alg
+	}
+}
+
+func LoadTokensFile() *os.File {
+	if tokensFilePath == "" {
+		return os.Stdin
+	} else if f, err := os.Open(tokensFilePath); err != nil {
+		log.Fatalf("could not open file: %s", err)
+		return nil
+	} else {
+		return f
 	}
 }
