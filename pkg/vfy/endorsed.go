@@ -7,13 +7,12 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-func verifyEndorsed(root *ADEMToken, endorsements []*ADEMToken, trustedKeys jwk.Set) []VerificationResult {
+func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToken, trustedKeys jwk.Set) []VerificationResult {
 	trustedFound := false
 	existsEndorsement := false
 	for _, endorsement := range endorsements {
-		endorsedKID, err := tokens.GetEndorsedKID(endorsement.Token)
-		if err != nil {
-			log.Printf("could not not get endorsed kid: %s\n", err)
+		if endorsedKID, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
+			log.Printf("could not not get endorsed kid: %s", err)
 			continue
 		} else if root.Token.Issuer() != endorsement.Token.Subject() {
 			continue
@@ -23,8 +22,10 @@ func verifyEndorsed(root *ADEMToken, endorsements []*ADEMToken, trustedKeys jwk.
 			continue
 		} else if root.VerificationKey.KeyID() != endorsedKID {
 			continue
+		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
+			log.Printf("emblem does not comply with endorsement constraints: %s", err)
+			return []VerificationResult{INVALID}
 		} else {
-			// TODO: Check constraints
 			existsEndorsement = true
 			_, ok := trustedKeys.LookupKeyID(endorsement.VerificationKey.KeyID())
 			trustedFound = trustedFound || ok

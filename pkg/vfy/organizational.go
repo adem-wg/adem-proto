@@ -36,10 +36,13 @@ func verifySignedOrganizational(emblem *ADEMToken, endorsements []*ADEMToken, tr
 		_, ok := trustedKeys.LookupKeyID(last.VerificationKey.KeyID())
 		trustedFound = trustedFound || ok
 
-		endorsing := endorsedBy[last.VerificationKey.KeyID()]
-		if endorsing != nil {
-			// TODO: Check constraints
-			last = endorsing
+		if endorsing := endorsedBy[last.VerificationKey.KeyID()]; endorsing != nil {
+			if err := tokens.VerifyConstraints(emblem.Token, endorsing.Token); err != nil {
+				log.Printf("emblem does not comply with endorsement constraints: %s", err)
+				return []VerificationResult{INVALID}, nil
+			} else {
+				last = endorsing
+			}
 		} else {
 			root = last
 		}
