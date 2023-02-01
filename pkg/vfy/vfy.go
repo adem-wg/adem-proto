@@ -178,6 +178,9 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) []VerificationResult 
 		return vfyResults
 	}
 
-	endorsedResults := verifyEndorsed(root, endorsements, trustedKeys)
+	endorsedResults := verifyEndorsed(emblem, root, endorsements, trustedKeys)
+	if util.Contains(endorsedResults, INVALID) {
+		return endorsedResults
+	}
 	return append(vfyResults, endorsedResults...)
 }
