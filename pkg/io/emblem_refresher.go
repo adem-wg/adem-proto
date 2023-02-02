@@ -20,7 +20,7 @@ func MkRefresher(cfg *gen.EmblemConfig, threshold int64) *EmblemRefresher {
 }
 
 func (er *EmblemRefresher) SignToken() (jwt.Token, []byte, error) {
-	if er.lastToken == nil || er.lastToken.Expiration().Unix() <= time.Now().Unix()+int64(er.threshold) {
+	if er.lastToken == nil || er.lastToken.Expiration().Unix() <= time.Now().Unix()+er.threshold {
 		er.lastToken, er.lastTokenRaw, er.lastErr = er.emblemCfg.SignToken()
 	}
 	return er.lastToken, er.lastTokenRaw, er.lastErr

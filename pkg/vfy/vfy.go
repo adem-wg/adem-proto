@@ -3,9 +3,12 @@ package vfy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
+	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -13,6 +16,40 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
+
+type VerificationResults struct {
+	results    []VerificationResult
+	protected  []*ident.AI
+	issuer     string
+	endorsedBy []string
+}
+
+func ResultInvalid() VerificationResults {
+	return VerificationResults{results: []VerificationResult{INVALID}}
+}
+
+func (res VerificationResults) Print() {
+	lns := []string{"Verified set of tokens. Results:"}
+	resultsStrs := make([]string, 0, len(res.results))
+	for _, r := range res.results {
+		resultsStrs = append(resultsStrs, r.String())
+	}
+	lns = append(lns, fmt.Sprintf("- Security levels:    %s", strings.Join(resultsStrs, ", ")))
+	if len(res.protected) > 0 {
+		assets := make([]string, 0, len(res.protected))
+		for _, ass := range res.protected {
+			assets = append(assets, ass.String())
+		}
+		lns = append(lns, fmt.Sprintf("- Protected assets:   %s", strings.Join(assets, ", ")))
+	}
+	if res.issuer != "" {
+		lns = append(lns, fmt.Sprintf("- Issuer of emblem:   %s", res.issuer))
+	}
+	if len(res.endorsedBy) > 0 {
+		lns = append(lns, fmt.Sprintf("- Issuer endorsed by: %s", strings.Join(res.endorsedBy, ", ")))
+	}
+	log.Print(strings.Join(lns, "\n"))
+}
 
 type VerificationResult byte
 
@@ -84,7 +121,7 @@ func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationRe
 }
 
 // Verify a slice of ADEM tokens.
-func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) []VerificationResult {
+func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	// We maintain a thread count for termination purposes. It might be that we
 	// cannot verify all token's verification key and must cancel verification.
 	threadCount := len(rawTokens)
@@ -141,20 +178,28 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) []VerificationResult 
 	}
 
 	var emblem *ADEMToken
+	var protected []*ident.AI
 	endorsements := []*ADEMToken{}
 	for _, t := range ts {
 		if t.Headers.ContentType() == string(consts.EmblemCty) {
 			if emblem != nil {
 				// Multiple emblems
 				log.Print("Token set contains multiple emblems")
-				return []VerificationResult{INVALID}
+				return ResultInvalid()
 			} else if err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EmblemValidator)); err != nil {
 				log.Printf("Invalid emblem: %s", err)
-				return []VerificationResult{INVALID}
-			} else if t.Headers.Algorithm() == jwa.NoSignature {
-				return []VerificationResult{UNSIGNED}
+				return ResultInvalid()
 			} else {
 				emblem = t
+			}
+
+			ass, _ := emblem.Token.Get("ass")
+			protected = ass.([]*ident.AI)
+			if emblem.Headers.Algorithm() == jwa.NoSignature {
+				return VerificationResults{
+					results:   []VerificationResult{UNSIGNED},
+					protected: protected,
+				}
 			}
 		} else if t.Headers.ContentType() == string(consts.EndorsementCty) {
 			err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EndorsementValidator))
@@ -170,17 +215,23 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) []VerificationResult 
 
 	if emblem == nil {
 		log.Print("no emblem found")
-		return []VerificationResult{INVALID}
+		return ResultInvalid()
 	}
 
 	vfyResults, root := verifySignedOrganizational(emblem, endorsements, trustedKeys)
 	if util.Contains(vfyResults, INVALID) {
-		return vfyResults
+		return ResultInvalid()
 	}
 
-	endorsedResults := verifyEndorsed(emblem, root, endorsements, trustedKeys)
+	endorsedResults, endorsedBy := verifyEndorsed(emblem, root, endorsements, trustedKeys)
 	if util.Contains(endorsedResults, INVALID) {
-		return endorsedResults
+		return ResultInvalid()
 	}
-	return append(vfyResults, endorsedResults...)
+
+	return VerificationResults{
+		results:    append(vfyResults, endorsedResults...),
+		issuer:     root.Token.Issuer(),
+		endorsedBy: endorsedBy,
+		protected:  protected,
+	}
 }

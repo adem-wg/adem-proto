@@ -41,7 +41,7 @@ func main() {
 		if set == nil {
 			break
 		} else {
-			log.Print(vfy.VerifyTokens(set, jwk.NewSet()))
+			vfy.VerifyTokens(set, jwk.NewSet()).Print()
 		}
 	}
 }

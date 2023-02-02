@@ -7,7 +7,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToken, trustedKeys jwk.Set) []VerificationResult {
+func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, []string) {
+	issuers := []string{}
 	trustedFound := false
 	existsEndorsement := false
 	for _, endorsement := range endorsements {
@@ -24,9 +25,10 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 			continue
 		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
 			log.Printf("emblem does not comply with endorsement constraints: %s", err)
-			return []VerificationResult{INVALID}
+			return []VerificationResult{INVALID}, nil
 		} else {
 			existsEndorsement = true
+			issuers = append(issuers, endorsement.Token.Issuer())
 			_, ok := trustedKeys.LookupKeyID(endorsement.VerificationKey.KeyID())
 			trustedFound = trustedFound || ok
 		}
@@ -37,8 +39,8 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 		if trustedFound {
 			results = append(results, ENDORSED_TRUSTED)
 		}
-		return results
+		return results, issuers
 	} else {
-		return []VerificationResult{}
+		return nil, nil
 	}
 }

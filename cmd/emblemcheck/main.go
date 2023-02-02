@@ -72,6 +72,5 @@ func main() {
 		}
 	}
 
-	verificationResults := vfy.VerifyTokens(lines, trustedKeys)
-	log.Print(verificationResults)
+	vfy.VerifyTokens(lines, trustedKeys).Print()
 }
