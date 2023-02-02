@@ -8,7 +8,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"flag"
 	"io"
 	"log"
@@ -16,7 +15,6 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/vfy"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 func init() {
@@ -46,26 +44,9 @@ func main() {
 		}
 	}
 
-	trustedKeysIn := args.LoadTrustedKeys()
-	trustedKeys := jwk.NewSet()
-	ctx := context.TODO()
-	iter := trustedKeysIn.Keys(ctx)
-	for iter.Next(ctx) {
-		k := iter.Pair().Value.(jwk.Key)
-		if pk, err := k.PublicKey(); err != nil {
-			log.Fatalf("could not get public key: %s", err)
-		} else {
-			if pk.Algorithm().String() == "" {
-				if err := pk.Set("alg", args.LoadTrustedKeysAlg()); err != nil {
-					log.Fatalf("could not set key alg: %s", err)
-				}
-			}
-			if err := tokens.SetKID(pk, true); err != nil {
-				log.Fatalf("could not set KID: %s", err)
-			}
-			trustedKeys.AddKey(pk)
-		}
+	trustedKeys, err := tokens.SetKIDs(args.LoadTrustedKeys(), args.LoadTrustedKeysAlg())
+	if err != nil {
+		log.Fatalf("could not set trusted keys KIDs: %s", err)
 	}
-
 	vfy.VerifyTokens(lines, trustedKeys).Print()
 }

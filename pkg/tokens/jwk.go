@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base32"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
@@ -73,4 +75,27 @@ func SetKID(key jwk.Key, force bool) error {
 	} else {
 		return key.Set("kid", kid)
 	}
+}
+
+func SetKIDs(set jwk.Set, alg *jwa.SignatureAlgorithm) (jwk.Set, error) {
+	withKIDs := jwk.NewSet()
+	ctx := context.TODO()
+	iter := set.Keys(ctx)
+	for iter.Next(ctx) {
+		k := iter.Pair().Value.(jwk.Key)
+		if pk, err := k.PublicKey(); err != nil {
+			return nil, err
+		} else {
+			if pk.Algorithm().String() == "" {
+				if err := pk.Set("alg", alg); err != nil {
+					return nil, err
+				}
+			}
+			if err := SetKID(pk, true); err != nil {
+				return nil, err
+			}
+			withKIDs.AddKey(pk)
+		}
+	}
+	return withKIDs, nil
 }

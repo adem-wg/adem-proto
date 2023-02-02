@@ -6,8 +6,8 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/io"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/vfy"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 func init() {
@@ -22,6 +22,10 @@ func main() {
 		log.Fatalf("could not fetch known logs: %s", err)
 	}
 
+	trustedKeys, err := tokens.SetKIDs(args.LoadTrustedKeys(), args.LoadTrustedKeysAlg())
+	if err != nil {
+		log.Fatalf("could not set trusted keys KIDs: %s", err)
+	}
 
 	results := make(chan io.TokenSet)
 	go io.UDPProbe(args.ProbePort, args.LoadProbeAddr(), args.ProbeTimeout, results)
@@ -29,7 +33,7 @@ func main() {
 		if set == nil {
 			break
 		} else {
-			vfy.VerifyTokens(set, jwk.NewSet()).Print()
+			vfy.VerifyTokens(set, trustedKeys).Print()
 		}
 	}
 }
