@@ -22,13 +22,17 @@ func (ts *timestamp) ToComparable() int64 {
 const SIZE int = 2 ^ 20
 
 type ipThrottle struct {
+	timeout  int64
 	stored   Set[int64]
 	queue    [SIZE]*timestamp
 	queuePtr int
 }
 
-func MkThrottler() *ipThrottle {
-	return &ipThrottle{stored: MkSet[int64]()}
+// Returns a throttler that can memorize up to 2^20 IP addresses. Can be queried
+// to check if an IP address was stored within the timeout window. If size is
+// exceeded, the odlest IP address that was stored will be discarded first.
+func MkThrottler(timeout int64) *ipThrottle {
+	return &ipThrottle{timeout: timeout, stored: MkSet[int64]()}
 }
 
 func (t *ipThrottle) store(val int64) {
@@ -43,7 +47,11 @@ func (t *ipThrottle) store(val int64) {
 	t.stored.Add(&ts)
 }
 
-func (t *ipThrottle) CanGo(addr *net.UDPAddr, timeout int64) bool {
+// Check if an address was checked within timeout. Returns true if the IP
+// address has not been stored, i.e., an expensive operation for that address
+// can be performed. May result in false negatives if the throttler's capacity
+// was exceeded, which is is 2^20.
+func (t *ipThrottle) CanGo(addr *net.UDPAddr) bool {
 	val := ipToInt(addr)
 	defer t.store(val)
 
@@ -52,7 +60,7 @@ func (t *ipThrottle) CanGo(addr *net.UDPAddr, timeout int64) bool {
 		return true
 	}
 	ts := el.(*timestamp)
-	if ts == nil || ts.time+timeout < time.Now().Unix() {
+	if ts == nil || ts.time+t.timeout < time.Now().Unix() {
 		return true
 	}
 	return false

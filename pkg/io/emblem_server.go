@@ -53,7 +53,7 @@ func (srv *emblemServer) respond(withEndorsements [][]byte) {
 	}
 
 	var seq uint16 = 0
-	throttler := util.MkThrottler()
+	throttler := util.MkThrottler(srv.timeout)
 	for addr := range srv.c {
 		if addr == nil {
 			// channel closed
@@ -61,7 +61,7 @@ func (srv *emblemServer) respond(withEndorsements [][]byte) {
 		}
 
 		log.Printf("received request from: %s", addr.String())
-		if !throttler.CanGo(addr, srv.timeout) {
+		if !throttler.CanGo(addr) {
 			log.Printf("throttling: %s", addr.String())
 			continue
 		} else if _, raw, err := srv.signer.SignToken(); err != nil {
