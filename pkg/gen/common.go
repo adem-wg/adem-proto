@@ -12,11 +12,33 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-type TokenConfig struct {
-	Sk      jwk.Key
-	Alg     *jwa.SignatureAlgorithm
-	Proto   jwt.Token
-	Endorse *jwk.Key
+type TokenGenerator interface {
+	SignToken() (jwt.Token, []byte, error)
+}
+
+type EmblemConfig struct {
+	sk       jwk.Key
+	alg      *jwa.SignatureAlgorithm
+	proto    jwt.Token
+	lifetime int64
+}
+
+func MkEmblemCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64) *EmblemConfig {
+	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime}
+}
+
+type EndorsementConfig struct {
+	EmblemConfig
+	endorse    jwk.Key
+	endorseAlg *jwa.SignatureAlgorithm
+}
+
+func MkEndorsementCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, proto jwt.Token, endorse jwk.Key, endorseAlg *jwa.SignatureAlgorithm, lifetime int64) *EndorsementConfig {
+	return &EndorsementConfig{
+		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime),
+		endorse:      endorse,
+		endorseAlg:   endorseAlg,
+	}
 }
 
 func prepToken(t jwt.Token, lifetime int64) error {

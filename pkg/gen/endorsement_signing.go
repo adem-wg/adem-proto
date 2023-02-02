@@ -1,7 +1,6 @@
 package gen
 
 import (
-	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -9,12 +8,12 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-func (cfg *TokenConfig) GenEndorsement() (jwt.Token, []byte, error) {
-	return nil, []byte{}, nil
+func (cfg *EndorsementConfig) SignToken() (jwt.Token, []byte, error) {
+	return SignEndorsement(cfg.sk, cfg.alg, cfg.proto, cfg.endorse, cfg.endorseAlg, cfg.lifetime)
 }
 
-func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, token jwt.Token, endorseKey jwk.Key, pkAlg *jwa.SignatureAlgorithm) (jwt.Token, []byte, error) {
-	if err := prepToken(token, args.LoadLifetime()); err != nil {
+func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, token jwt.Token, endorseKey jwk.Key, pkAlg *jwa.SignatureAlgorithm, lifetime int64) (jwt.Token, []byte, error) {
+	if err := prepToken(token, lifetime); err != nil {
 		return nil, nil, err
 	}
 

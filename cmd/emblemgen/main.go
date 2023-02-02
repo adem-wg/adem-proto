@@ -27,6 +27,7 @@ func main() {
 			args.LoadPrivateKey(),
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
+			args.LoadLifetime(),
 		)
 	} else {
 		_, signedToken, err = gen.SignEndorsement(
@@ -35,6 +36,7 @@ func main() {
 			args.LoadClaimsProto(),
 			endorseKey,
 			args.LoadPKAlg(),
+			args.LoadLifetime(),
 		)
 	}
 

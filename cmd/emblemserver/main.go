@@ -22,18 +22,28 @@ func main() {
 
 	log.Println("Starting server... Exit with Ctrl+D")
 
+	var endorsements [][]byte
+	if es, err := args.LoadEndorsements(); err != nil {
+		log.Fatalf("could not load endorsements: %s", err)
+	} else {
+		endorsements = es
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
-	c := make(chan net.Addr)
+	c := make(chan *net.UDPAddr)
 	// WatchDmesg will close c
-	go io.WatchDmesg(os.Stdin, args.Port, c, &wg)
+	go io.WatchDmesg(os.Stdin, args.ServerPort, c, &wg)
 	go io.EmblemUDPServer(
-		&gen.TokenConfig{
-			Sk:    args.LoadPrivateKey(),
-			Alg:   args.LoadAlg(),
-			Proto: args.LoadClaimsProto(),
-		},
-		args.Port,
+		io.MkRefresher(gen.MkEmblemCfg(
+			args.LoadPrivateKey(),
+			args.LoadAlg(),
+			args.LoadClaimsProto(),
+			args.LoadLifetime(),
+		), args.SafetyWindow),
+		endorsements,
+		args.ServerPort,
+		args.ThrottleTimeout,
 		c,
 		&wg,
 	)

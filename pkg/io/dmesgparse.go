@@ -10,13 +10,9 @@ import (
 	"sync"
 )
 
-var matcher *regexp.Regexp
+var matcher *regexp.Regexp = regexp.MustCompile(`\[\s*(\d+\.\d+)\]\s*iptables log:.*SRC=([\d\.:]+).*DPT=(\d+)`)
 
-func init() {
-	matcher = regexp.MustCompile(`\[\s*(\d+\.\d+)\]\s*iptables log:.*SRC=([\d\.:]+).*DPT=(\d+)`)
-}
-
-func parseLine(line string, serverPort int) net.Addr {
+func parseLine(line string, serverPort int) *net.UDPAddr {
 	match := matcher.FindStringSubmatch(line)
 	if match == nil {
 		return nil
@@ -35,14 +31,14 @@ func parseLine(line string, serverPort int) net.Addr {
 	return addr
 }
 
-func WatchDmesg(file *os.File, serverPort int, c chan net.Addr, wg *sync.WaitGroup) {
+func WatchDmesg(file *os.File, serverPort int, c chan *net.UDPAddr, wg *sync.WaitGroup) {
 	defer wg.Done()
+	defer close(c)
 	reader := bufio.NewReader(file)
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			close(c)
 			return
 		}
 

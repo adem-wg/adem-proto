@@ -4,21 +4,22 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 )
 
-var SafetyWindow int
-var Port int
+var SafetyWindow int64
+var ThrottleTimeout int64
+var ServerPort int
 var endorsementsDir string
 
 func AddEmblemDistributionArgs() {
-	flag.IntVar(&SafetyWindow, "sfty", 600, "how long before expiry should a new emblem be generated?")
-	flag.IntVar(&Port, "port", 60, "emblem server port")
+	flag.Int64Var(&SafetyWindow, "sfty", 600, "how long before expiry should a new emblem be generated?")
+	flag.Int64Var(&ThrottleTimeout, "timeout", 600, "how long the server will wait before sending tokens to the same address twice")
+	flag.IntVar(&ServerPort, "port", 60, "emblem server port")
 	flag.StringVar(&endorsementsDir, "end", "", "path to endorsements")
 }
 
-func LoadEndorsements() ([]string, error) {
+func LoadEndorsements() ([][]byte, error) {
 	if endorsementsDir == "" {
 		log.Fatal("no --end arg")
 	}
@@ -28,15 +29,12 @@ func LoadEndorsements() ([]string, error) {
 		log.Fatalf("cannot expand endorsements glob: %s", err)
 	}
 
-	endorsements := []string{}
+	endorsements := [][]byte{}
 	for _, fpath := range matches {
-		switch path.Ext(fpath) {
-		case ".jwt":
-			bs, err := os.ReadFile(fpath)
-			if err != nil {
-				log.Printf("could not parse file %s", fpath)
-			}
-			endorsements = append(endorsements, string(bs))
+		if bs, err := os.ReadFile(fpath); err != nil {
+			log.Printf("could not parse file %s", fpath)
+		} else {
+			endorsements = append(endorsements, bs)
 		}
 	}
 
