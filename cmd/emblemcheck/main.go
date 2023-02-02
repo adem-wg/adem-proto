@@ -19,6 +19,7 @@ import (
 
 func init() {
 	args.AddVerificationArgs()
+	args.AddVerificationLocalArgs()
 }
 
 func main() {

@@ -24,6 +24,9 @@ func AddVerificationArgs() {
 	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
 	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
+}
+
+func AddVerificationLocalArgs() {
 	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
 }
 
