@@ -20,6 +20,8 @@ type emblemServer struct {
 	c       chan *net.UDPAddr
 }
 
+// Listen for incoming packets on the server's port and send all addresses to
+// the responder.
 func (srv *emblemServer) listen() {
 	defer srv.wg.Done()
 	buf := []byte{}
@@ -35,6 +37,10 @@ func (srv *emblemServer) listen() {
 	}
 }
 
+// Waits for addreses either parsed from dmesg or from incoming UDP packets.
+// Sends all incoming addresses an emblem with all endorsements provided as
+// arguments.
+// Throttles how many tokens it send to each IP address.
 func (srv *emblemServer) respond(withEndorsements [][]byte) {
 	defer srv.wg.Done()
 	defer srv.conn.Close()
@@ -75,6 +81,9 @@ func (srv *emblemServer) respond(withEndorsements [][]byte) {
 	}
 }
 
+// Emblem distributing UDP server. Listens to the given port and to the given
+// channel. Sends emblems to every address it receives over the given channel,
+// but each address only once per timeout.
 func EmblemUDPServer(signer gen.TokenGenerator, endorsements [][]byte, port int, timeout int64, c chan *net.UDPAddr, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// Connection will be closed in server.respond

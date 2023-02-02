@@ -18,6 +18,8 @@ const prefix_len = 4
 
 var ErrPacketTooShort = errors.New("packet is too short to contain token")
 
+// Encodes a token that will be accompanied by totalNum many other tokens as a
+// packet. Call [Prep] before sending the packet.
 func PacketForToken(rawToken []byte, totalNum uint16) tokenPacket {
 	if len(rawToken) > udp_max_payload-prefix_len {
 		panic("token too big to send in one packet")
@@ -26,6 +28,8 @@ func PacketForToken(rawToken []byte, totalNum uint16) tokenPacket {
 	return append([]byte{0, 0, totalBuf[0], totalBuf[1]}, rawToken...)
 }
 
+// Assembles the token as byte slice for sending by setting the sets of tokens
+// sequence number.
 func (packet tokenPacket) Prep(seq uint16) []byte {
 	seqBuf := uint16ToBs(seq)
 	packet[0] = seqBuf[0]
@@ -33,6 +37,8 @@ func (packet tokenPacket) Prep(seq uint16) []byte {
 	return packet
 }
 
+// Parses a packet that was assembled by [PacketForToken] and [Prep]. Returns
+// the sequence number, number of tokens to be expected in total, and the token.
 func FromPacket(packet []byte) (uint16, int, []byte, error) {
 	if len(packet) < prefix_len {
 		return 0, 0, nil, ErrPacketTooShort

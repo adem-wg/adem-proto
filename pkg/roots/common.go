@@ -16,6 +16,8 @@ type VerificationResult struct {
 	Ok     bool
 }
 
+// Verify that the given key was correctly committed to the Certificate
+// Transparency infrastructure for the given issuer.
 func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []VerificationResult {
 	verified := []VerificationResult{}
 	for _, logConfig := range logs {

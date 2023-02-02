@@ -1,3 +1,8 @@
+/*
+This tool starts an emblem distribution server. It listens to a specified port
+and parses dmesg log output from stdin. Whenever it observes an unknown (or
+timed out IP address), it sends that address a set of tokens to port 60.
+*/
 package main
 
 import (

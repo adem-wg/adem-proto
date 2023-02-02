@@ -13,6 +13,8 @@ import (
 )
 
 type TokenGenerator interface {
+	// Generate a signed token. First argument is the signed token, second
+	// argument the bytes of the JWS in compact serialization.
 	SignToken() (jwt.Token, []byte, error)
 }
 

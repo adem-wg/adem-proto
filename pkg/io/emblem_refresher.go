@@ -15,6 +15,9 @@ type EmblemRefresher struct {
 	lastErr      error
 }
 
+// Returns an instance of [gen.TokenGenerator]. Generates an emblem according to
+// the given [gen.EmblemConfig] but only every threshold many seconds. Calls to
+// SignToken() will return the most recently signed token.
 func MkRefresher(cfg *gen.EmblemConfig, threshold int64) *EmblemRefresher {
 	return &EmblemRefresher{emblemCfg: cfg, threshold: threshold}
 }

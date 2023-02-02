@@ -43,6 +43,7 @@ func Fullfilled[T any](val T) Promise[T] {
 	return p
 }
 
+// Return a rejected promise.
 func Rejected[T any]() Promise[T] {
 	p := NewPromise[T]()
 	p.Reject()

@@ -13,6 +13,10 @@ type tokenCounter struct {
 	collected [][]byte
 }
 
+// Receives and parses packets read as a response to the probe. Tries to
+// group packets based on their sequence uint16. Once it observers a compelte
+// set of tokens, it writes it to the results channel. Finally, this function
+// closes the results channel.
 func responseParser(packetChan chan []byte, resultsChan chan TokenSet) {
 	defer close(resultsChan)
 
@@ -43,13 +47,18 @@ func responseParser(packetChan chan []byte, resultsChan chan TokenSet) {
 	}
 }
 
-func UDPProbe(listenPort int, respondAddr *net.UDPAddr, timeout int64, resultsChan chan TokenSet) {
+// Sends a zero-sized packet to the probe address and listens for a response on
+// the given port. Any complete set of tokens is written to the result channel.
+// Result channel will be closed by this method.
+// Listens for timeout many seconds, even if it received one set of tokens
+// already.
+func UDPProbe(listenPort int, probeAddr *net.UDPAddr, timeout int64, resultsChan chan TokenSet) {
 	laddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", listenPort))
 	if err != nil {
 		log.Fatalf("could not resolve local address: %s", err)
 	}
 
-	conn, err := net.DialUDP("udp", laddr, respondAddr)
+	conn, err := net.DialUDP("udp", laddr, probeAddr)
 	if conn != nil {
 		defer conn.Close()
 	}

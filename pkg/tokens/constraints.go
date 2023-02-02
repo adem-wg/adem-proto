@@ -7,6 +7,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
+// Check that the given emblem's ass claim complies with the given ass
+// constraints.
 func checkAssetConstraint(emblem jwt.Token, constraints EmblemConstraints) bool {
 	ass, _ := emblem.Get("ass")
 	match := false
@@ -29,6 +31,8 @@ var ErrPrpConstraint = errors.New("emblem does not satisfy prp constraint")
 var ErrDstConstraint = errors.New("emblem does not satisfy dst constraint")
 var ErrWndConstraint = errors.New("emblem does not satisfy wnd constraint")
 
+// Verify that the given emblem complies with the given endorsement's
+// constraints.
 func VerifyConstraints(emblem jwt.Token, endorsement jwt.Token) error {
 	if endCnstrs, ok := endorsement.Get("emb"); !ok {
 		return nil

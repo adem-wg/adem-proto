@@ -1,3 +1,8 @@
+/*
+This tool sends an empty UDP packet to a given port and waits for emblems on
+another specified port in response. Whenever it receives a set of tokens, it
+verifies them.
+*/
 package main
 
 import (
