@@ -14,7 +14,6 @@ import (
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
-	"github.com/adem-wg/adem-proto/pkg/roots"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/vfy"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -26,12 +25,8 @@ func init() {
 
 func main() {
 	flag.Parse()
-	if !args.CTProviderGoogle && !args.CTProviderApple {
-		log.Fatalf("no trusted CT log providers selected")
-	} else if err := roots.FetchGoogleKnownLogs(); err != nil {
-		log.Fatalf("could not fetch Google known CT logs: %s", err)
-	} else if err := roots.FetchAppleKnownLogs(); err != nil {
-		log.Fatalf("could not fetch Apple known CT logs: %s", err)
+	if err := args.FetchKnownLogs(); err != nil {
+		log.Fatalf("could not fetch known logs: %s", err)
 	}
 
 	file := args.LoadTokensFile()

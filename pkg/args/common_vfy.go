@@ -1,10 +1,12 @@
 package args
 
 import (
+	"errors"
 	"flag"
 	"log"
 	"os"
 
+	"github.com/adem-wg/adem-proto/pkg/roots"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
@@ -23,6 +25,28 @@ func AddVerificationArgs() {
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
 	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
 	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
+}
+
+var ErrNoLogProvider = errors.New("no log providers")
+
+func FetchKnownLogs() error {
+	if !CTProviderApple && !CTProviderGoogle {
+		return ErrNoLogProvider
+	}
+
+	if CTProviderApple {
+		if err := roots.FetchAppleKnownLogs(); err != nil {
+			return err
+		}
+	}
+
+	if CTProviderGoogle {
+		if err := roots.FetchGoogleKnownLogs(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func LoadTrustedKeys() jwk.Set {
