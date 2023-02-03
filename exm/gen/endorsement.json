@@ -1,0 +1,8 @@
+{
+  "ver": "v1",
+  "emb": {
+    "ass": ["example.com"],
+    "prp": ["protective"],
+    "dst": ["udp", "dns"]
+  }
+}
