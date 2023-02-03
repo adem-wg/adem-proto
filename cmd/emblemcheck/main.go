@@ -45,9 +45,12 @@ func main() {
 		}
 	}
 
-	trustedKeys, err := tokens.SetKIDs(args.LoadTrustedKeys(), args.LoadTrustedKeysAlg())
-	if err != nil {
-		log.Fatalf("could not set trusted keys KIDs: %s", err)
+	trustedKeys := args.LoadTrustedKeys()
+	if trustedKeys.Len() > 0 {
+		var err error
+		if trustedKeys, err = tokens.SetKIDs(trustedKeys, args.LoadTrustedKeysAlg()); err != nil {
+			log.Fatalf("could not set trusted keys KIDs: %s", err)
+		}
 	}
 	vfy.VerifyTokens(lines, trustedKeys).Print()
 }
