@@ -33,12 +33,8 @@ func main() {
 		log.Fatal("no issuer given")
 	} else if bs, err := io.ReadAll(os.Stdin); err != nil {
 		log.Fatalf("could not read from stdin: %s", err)
-	} else if !args.CTProviderGoogle && !args.CTProviderApple {
-		log.Fatalf("no trusted CT log providers selected")
-	} else if err := roots.FetchGoogleKnownLogs(); err != nil {
-		log.Fatalf("could not fetch Google known CT logs: %s", err)
-	} else if err := roots.FetchAppleKnownLogs(); err != nil {
-		log.Fatalf("could not fetch Apple known CT logs: %s", err)
+	} else if err := args.FetchKnownLogs(); err != nil {
+		log.Fatalf("could not fetch known CT logs: %s", err)
 	} else {
 		logs := []*tokens.LogConfig{}
 		if err := json.Unmarshal(bs, &logs); err != nil {

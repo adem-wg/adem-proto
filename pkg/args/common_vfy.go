@@ -21,7 +21,7 @@ var tokensFilePath string
 
 func AddVerificationArgs() {
 	flag.BoolVar(&CTProviderGoogle, "google", true, "trust CT logs known to Google")
-	flag.BoolVar(&CTProviderGoogle, "apple", true, "trust CT logs known to Apple")
+	flag.BoolVar(&CTProviderApple, "apple", true, "trust CT logs known to Apple")
 	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")
 	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
