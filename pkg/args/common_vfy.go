@@ -13,6 +13,7 @@ import (
 
 var CTProviderGoogle bool
 var CTProviderApple bool
+var CTProviderPattern string
 var OI string
 var trustedKeyPath string
 var trustedKeyPEM bool
@@ -22,6 +23,7 @@ var tokensFilePath string
 func AddVerificationArgs() {
 	flag.BoolVar(&CTProviderGoogle, "google", true, "trust CT logs known to Google")
 	flag.BoolVar(&CTProviderApple, "apple", true, "trust CT logs known to Apple")
+	flag.StringVar(&CTProviderPattern, "logs", "", "trust CT logs from files")
 	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")
 	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
@@ -35,7 +37,7 @@ func AddVerificationLocalArgs() {
 var ErrNoLogProvider = errors.New("no log providers")
 
 func FetchKnownLogs() error {
-	if !CTProviderApple && !CTProviderGoogle {
+	if !CTProviderApple && !CTProviderGoogle && CTProviderPattern == "" {
 		return ErrNoLogProvider
 	}
 
@@ -47,6 +49,12 @@ func FetchKnownLogs() error {
 
 	if CTProviderGoogle {
 		if err := roots.FetchGoogleKnownLogs(); err != nil {
+			return err
+		}
+	}
+
+	if CTProviderPattern != "" {
+		if err := roots.ReadKnownLogs(CTProviderPattern); err != nil {
 			return err
 		}
 	}

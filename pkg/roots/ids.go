@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/adem-wg/adem-proto/pkg/util"
@@ -23,6 +25,25 @@ var ctLogs map[string]CTLog = make(map[string]CTLog)
 
 // [ctLogs] access lock.
 var logMapLock sync.Mutex = sync.Mutex{}
+
+func storeLogs(rawJson []byte) error {
+	logMapLock.Lock()
+	defer logMapLock.Unlock()
+
+	logs := KnownLogs{}
+	err := json.Unmarshal(rawJson, &logs)
+	if err != nil {
+		return err
+	}
+
+	for _, operator := range logs.Operators {
+		for _, l := range operator.Logs {
+			ctLogs[l.Id] = l
+		}
+	}
+
+	return nil
+}
 
 // Get the log client associate to a CT log ID.
 func GetLogClient(id string) (*client.LogClient, error) {
@@ -68,9 +89,6 @@ func (k *LogKey) UnmarshalJSON(bs []byte) (err error) {
 
 // Load logs from a given log list.
 func fetchLogs(url string) error {
-	logMapLock.Lock()
-	defer logMapLock.Unlock()
-
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -82,19 +100,7 @@ func fetchLogs(url string) error {
 		return err
 	}
 
-	logs := KnownLogs{}
-	err = json.Unmarshal(body, &logs)
-	if err != nil {
-		return err
-	}
-
-	for _, operator := range logs.Operators {
-		for _, l := range operator.Logs {
-			ctLogs[l.Id] = l
-		}
-	}
-
-	return nil
+	return storeLogs(body)
 }
 
 // Load logs known to Google.
@@ -105,4 +111,21 @@ func FetchGoogleKnownLogs() error {
 // Load logs known to Apple.
 func FetchAppleKnownLogs() error {
 	return fetchLogs(log_list_apple)
+}
+
+func ReadKnownLogs(pattern string) error {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+
+	for _, path := range matches {
+		if bs, err := os.ReadFile(path); err != nil {
+			return err
+		} else if err := storeLogs(bs); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
