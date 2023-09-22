@@ -16,7 +16,6 @@ type emblemServer struct {
 	timeout int64
 	signer  gen.TokenGenerator
 	conn    net.PacketConn
-	wg      sync.WaitGroup
 	c       chan *net.UDPAddr
 }
 
@@ -25,9 +24,6 @@ type emblemServer struct {
 // arguments.
 // Throttles how many tokens it send to each IP address.
 func (srv *emblemServer) respond(withEndorsements [][]byte) {
-	defer srv.wg.Done()
-	defer srv.conn.Close()
-
 	tokensNum := uint16(len(withEndorsements) + 1)
 	tokens := make([]tokenPacket, tokensNum)
 	for i, endorsement := range withEndorsements {
@@ -74,6 +70,7 @@ func EmblemUDPServer(signer gen.TokenGenerator, endorsements [][]byte, port int,
 	if err != nil {
 		log.Fatalf("could not start server: %s", err)
 	}
+	defer conn.Close()
 
 	server := emblemServer{
 		timeout: timeout,
@@ -81,8 +78,7 @@ func EmblemUDPServer(signer gen.TokenGenerator, endorsements [][]byte, port int,
 		conn:    conn,
 		c:       c,
 	}
-	server.wg.Add(1)
 
-	go server.respond(endorsements)
-	server.wg.Wait()
+	// Will terminate when c closes
+	server.respond(endorsements)
 }

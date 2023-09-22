@@ -10,7 +10,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/gen"
@@ -22,10 +24,19 @@ func init() {
 	args.AddSigningArgs()
 }
 
+func catchSIGINT(c chan os.Signal) bool {
+	for signal := range c {
+		if signal == syscall.SIGINT {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	flag.Parse()
 
-	log.Println("Starting server... Exit with Ctrl+D")
+	log.Println("Starting server... Exit with Ctrl+C")
 
 	var endorsements [][]byte
 	if es, err := args.LoadEndorsements(); err != nil {
@@ -36,9 +47,28 @@ func main() {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	c := make(chan *net.UDPAddr)
-	// WatchSyslog will close c
-	go io.WatchSyslog(os.Stdin, args.ServerPort, c, &wg)
+
+	addrChan := make(chan *net.UDPAddr)
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT)
+	var once sync.Once
+
+	go func() {
+		// We don't wait for this goroutine as it might never unblock; if the
+		// watcher terminates before the user presses Ctrl+C, it (most probably) hit
+		// EOF and will thus close the signalChan, which will definitely close the
+		// addrChan.
+		defer once.Do(func() { close(signalChan) })
+		io.WatchSyslog(os.Stdin, args.ServerPort, addrChan)
+	}()
+	go func() {
+		defer wg.Done()
+		defer close(addrChan)
+		defer once.Do(func() { close(signalChan) })
+		catchSIGINT(signalChan)
+	}()
+
+	// Server will terminate when addrChan is closed
 	go io.EmblemUDPServer(
 		io.MkRefresher(gen.MkEmblemCfg(
 			args.LoadPrivateKey(),
@@ -49,7 +79,7 @@ func main() {
 		endorsements,
 		args.ServerPort,
 		args.ThrottleTimeout,
-		c,
+		addrChan,
 		&wg,
 	)
 

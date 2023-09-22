@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"regexp"
-	"sync"
 )
 
 // We support syslog messages as specified in https://www.rfc-editor.org/rfc/rfc3164
@@ -40,9 +39,7 @@ func parseLine(line string, serverPort int) *net.UDPAddr {
 	}
 }
 
-func WatchSyslog(file *os.File, serverPort int, c chan *net.UDPAddr, wg *sync.WaitGroup) {
-	defer wg.Done()
-	defer close(c)
+func WatchSyslog(file *os.File, serverPort int, c chan *net.UDPAddr) {
 	reader := bufio.NewReader(file)
 
 	for {
