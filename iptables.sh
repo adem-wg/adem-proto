@@ -1,1 +1,2 @@
-iptables -I INPUT 1 -j LOG --log-prefix 'iptables log: ' --log-level 7
+service rsyslog start
+iptables -I INPUT 1 -j LOG --log-prefix 'emblem_server_event: ' --log-level 7

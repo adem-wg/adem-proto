@@ -37,8 +37,8 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	c := make(chan *net.UDPAddr)
-	// WatchDmesg will close c
-	go io.WatchDmesg(os.Stdin, args.ServerPort, c, &wg)
+	// WatchSyslog will close c
+	go io.WatchSyslog(os.Stdin, args.ServerPort, c, &wg)
 	go io.EmblemUDPServer(
 		io.MkRefresher(gen.MkEmblemCfg(
 			args.LoadPrivateKey(),

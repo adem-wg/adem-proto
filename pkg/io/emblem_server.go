@@ -37,7 +37,7 @@ func (srv *emblemServer) listen() {
 	}
 }
 
-// Waits for addreses either parsed from dmesg or from incoming UDP packets.
+// Waits for addresses either parsed from dmesg or from incoming UDP packets.
 // Sends all incoming addresses an emblem with all endorsements provided as
 // arguments.
 // Throttles how many tokens it send to each IP address.
