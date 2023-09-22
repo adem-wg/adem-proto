@@ -20,23 +20,6 @@ type emblemServer struct {
 	c       chan *net.UDPAddr
 }
 
-// Listen for incoming packets on the server's port and send all addresses to
-// the responder.
-func (srv *emblemServer) listen() {
-	defer srv.wg.Done()
-	buf := []byte{}
-	for {
-		_, addr, err := srv.conn.ReadFrom(buf)
-		if err != nil {
-			break
-		} else if udpAddr, ok := addr.(*net.UDPAddr); !ok {
-			log.Print("error: could not cast address to net.UDPAddr")
-		} else {
-			srv.c <- udpAddr
-		}
-	}
-}
-
 // Waits for addresses either parsed from dmesg or from incoming UDP packets.
 // Sends all incoming addresses an emblem with all endorsements provided as
 // arguments.
@@ -98,9 +81,8 @@ func EmblemUDPServer(signer gen.TokenGenerator, endorsements [][]byte, port int,
 		conn:    conn,
 		c:       c,
 	}
-	server.wg.Add(2)
+	server.wg.Add(1)
 
-	go server.listen()
 	go server.respond(endorsements)
 	server.wg.Wait()
 }
