@@ -9,13 +9,13 @@ import (
 
 var SafetyWindow int64
 var ThrottleTimeout int64
-var ServerPort int
+var EmblemPort int
 var endorsementsDir string
 
 func AddEmblemDistributionArgs() {
 	flag.Int64Var(&SafetyWindow, "sfty", 600, "how long before expiry should a new emblem be generated?")
 	flag.Int64Var(&ThrottleTimeout, "timeout", 600, "how long the server will wait before sending tokens to the same address twice")
-	flag.IntVar(&ServerPort, "port", 60, "emblem server port")
+	flag.IntVar(&EmblemPort, "port", 60, "port to send emblems to")
 	flag.StringVar(&endorsementsDir, "end", "", "path to endorsements")
 }
 

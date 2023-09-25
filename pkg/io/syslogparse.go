@@ -25,27 +25,27 @@ var dataGroup int = 3
 var ipGroup = 1
 var msgDataParser *regexp.Regexp = regexp.MustCompile(`SRC=([\d\.]+|[\d\w:\[\]]+)`)
 
-func parseLine(line string, serverPort int) *net.UDPAddr {
+func parseLine(line string, emblemPort int) *net.UDPAddr {
 	if syslogMatch := syslogParser.FindStringSubmatch(line); syslogMatch == nil {
 		return nil
 	} else if msgMatch := syslogMsgParser.FindStringSubmatch(syslogMatch[msgGroup]); msgMatch == nil {
 		return nil
 	} else if dataMatch := msgDataParser.FindStringSubmatch(msgMatch[dataGroup]); dataMatch == nil {
 		return nil
-	} else if addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", dataMatch[ipGroup], serverPort)); err != nil || addr.IP.IsLoopback() {
+	} else if addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", dataMatch[ipGroup], emblemPort)); err != nil || addr.IP.IsLoopback() {
 		return nil
 	} else {
 		return addr
 	}
 }
 
-func WatchSyslog(file *os.File, serverPort int, c chan *net.UDPAddr) {
+func WatchSyslog(file *os.File, emblemPort int, c chan *net.UDPAddr) {
 	reader := bufio.NewReader(file)
 
 	for {
 		if line, err := reader.ReadString('\n'); err != nil {
 			return
-		} else if request := parseLine(line, serverPort); request != nil {
+		} else if request := parseLine(line, emblemPort); request != nil {
 			c <- request
 		}
 	}

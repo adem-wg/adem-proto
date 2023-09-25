@@ -1,7 +1,7 @@
 /*
-This tool starts an emblem distribution server. It listens to a specified port
-and parses dmesg log output from stdin. Whenever it observes an unknown (or
-timed out IP address), it sends that address a set of tokens to port 60.
+This tool starts an emblem distribution server. It parses syslog log output from
+stdin. Whenever it observes an unknown (or timed out IP address), it sends that
+address a set of tokens to a specified port.
 */
 package main
 
@@ -59,7 +59,7 @@ func main() {
 		// EOF and will thus close the signalChan, which will definitely close the
 		// addrChan.
 		defer once.Do(func() { close(signalChan) })
-		io.WatchSyslog(os.Stdin, args.ServerPort, addrChan)
+		io.WatchSyslog(os.Stdin, args.EmblemPort, addrChan)
 	}()
 	go func() {
 		defer wg.Done()
@@ -77,7 +77,7 @@ func main() {
 			args.LoadLifetime(),
 		), args.SafetyWindow),
 		endorsements,
-		args.ServerPort,
+		args.EmblemPort,
 		args.ThrottleTimeout,
 		addrChan,
 		&wg,
