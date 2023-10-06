@@ -20,23 +20,29 @@ func MkSet[T comparable]() Set[T] {
 }
 
 func (s *set[T]) Has(val Elem[T]) Elem[T] {
-	e := (*s)[val.ToComparable()]
-	return e
+	if val != nil {
+		return (*s)[val.ToComparable()]
+	}
+	return nil
 }
 
 func (s *set[T]) HasKey(val T) Elem[T] {
-	e := (*s)[val]
-	return e
+	return (*s)[val]
 }
 
 func (s *set[T]) Add(val Elem[T]) {
-	(*s)[val.ToComparable()] = val
+	if val != nil {
+		(*s)[val.ToComparable()] = val
+	}
 }
 
 func (s *set[T]) Rm(val Elem[T]) Elem[T] {
-	e := (*s)[val.ToComparable()]
-	delete(*s, val.ToComparable())
-	return e
+	if val != nil {
+		e := (*s)[val.ToComparable()]
+		delete(*s, val.ToComparable())
+		return e
+	}
+	return nil
 }
 
 func (s *set[T]) Size() int {
