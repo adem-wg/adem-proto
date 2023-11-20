@@ -35,7 +35,7 @@ func joinDomain(labels []string) string {
 }
 
 func (ai *AI) MoreGeneral(than *AI) bool {
-	if ai.port != nil && *ai.port != *than.port {
+	if ai.port != nil && (ai.port != than.port || *ai.port != *than.port) {
 		return false
 	}
 
