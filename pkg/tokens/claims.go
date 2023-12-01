@@ -20,6 +20,7 @@ func init() {
 	jwt.RegisterCustomField("key", EmbeddedKey{})
 	jwt.RegisterCustomField("ass", []*ident.AI{})
 	jwt.RegisterCustomField("emb", EmblemConstraints{})
+	jwt.RegisterCustomField("ver", "")
 }
 
 var ErrIllegalConst = errors.New("json element is illegal constant")
@@ -162,6 +163,7 @@ func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
 var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))
 var ErrIllegalType = jwt.NewValidationError(errors.New("illegal claim type"))
 var ErrAssMissing = jwt.NewValidationError(errors.New("emblems require ass claim"))
+var ErrEndMissing = jwt.NewValidationError(errors.New("endorsements require end claim"))
 
 // Validation function for emblem tokens.
 var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
@@ -188,6 +190,8 @@ var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token
 		if !check {
 			return ErrIllegalType
 		}
+	} else {
+		return ErrEndMissing
 	}
 
 	return nil
