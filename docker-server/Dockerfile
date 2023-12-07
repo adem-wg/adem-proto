@@ -23,7 +23,9 @@ EXPOSE 6060/udp
 
 # Run
 RUN mkdir /var/emblemserver
+RUN mkdir /var/emblemlog
+RUN touch /var/emblemlog/system.log
 RUN openssl ecparam -genkey -name secp521r1 -noout -out private_emb.pem
 RUN openssl ec -in private_emb.pem -pubout -out /var/emblemserver/public_emb.pem
 
-ENTRYPOINT ["-f", "tail", "/var/emblemlog/system.log" "|", "./emblemserver", "-skey", "emblem.pem", "-alg", "ES512", "-port", "6060", "-end", "/var/emblemserver/end_*.jws", "-proto", "/var/emblemserver/emblem.json", "-timeout", "${EMBLEM_TIMEOUT}"]
+CMD tail -f /var/emblemlog/system.log | ./emblemserver -skey private_emb.pem -alg ES512 -port 6060 -end /var/emblemserver/end_*.jws -proto /var/emblemserver/emblem.json -timeout ${EMBLEM_TIMEOUT}
