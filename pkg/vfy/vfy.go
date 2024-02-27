@@ -121,10 +121,7 @@ func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationRe
 }
 
 // Verify a slice of ADEM tokens.
-<<<<<<< HEAD
 func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
-=======
-func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) (res VerificationResults) {
 
 	// Early termination for empty rawTokens slice
 	if len(rawTokens) == 0 {
@@ -136,16 +133,6 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) (res VerificationResu
 		trustedKeys = jwk.NewSet()
 	}
 
-	/*
-		(lmeinen) Note the nuance in terminology:
-			1 To verify a JWT: Check that the encoded string corresponds to a valid JSON encoding of a JWT, and that the JWT's signature is valid w.r.t. to its verification key
-			2 To validate a JWT: Check that a JWT's claims stand (and in this case: that the required field 'ass' resp. 'end' is present)
-			3 To verify a security level: Assuming the two above steps have been executed, walk the endorsement chain and check the security level of the emblem as defined in ADEM (incl. endorsement constraints)
-	*/
-
-	// (lmeinen) 0 - set up chain of promises from root keys to signing keys
-
->>>>>>> d17a4aa (Handle edge cases: Empty rawTokens slice & nil trustedKeys set)
 	// We maintain a thread count for termination purposes. It might be that we
 	// cannot verify all token's verification key and must cancel verification.
 	threadCount := len(rawTokens)
