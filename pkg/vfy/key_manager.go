@@ -152,7 +152,7 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 				break
 			}
 		}
-		if err == nil {
+		if err == nil && len(logs.([]*tokens.LogConfig)) > 0 {
 			km.put(headerKey)
 		}
 	}

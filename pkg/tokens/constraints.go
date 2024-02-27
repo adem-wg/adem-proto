@@ -11,8 +11,8 @@ import (
 // constraints.
 func checkAssetConstraint(emblem jwt.Token, constraints EmblemConstraints) bool {
 	ass, _ := emblem.Get("ass")
-	match := false
 	for _, ai := range ass.([]*ident.AI) {
+		match := false
 		for _, constraint := range constraints.Assets {
 			if constraint.MoreGeneral(ai) {
 				match = true
