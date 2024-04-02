@@ -163,6 +163,7 @@ func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
 var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))
 var ErrIllegalType = jwt.NewValidationError(errors.New("illegal claim type"))
 var ErrAssMissing = jwt.NewValidationError(errors.New("emblems require ass claim"))
+var ErrLogClaim = jwt.NewValidationError(errors.New("emblems must not contain a log claim"))
 var ErrEndMissing = jwt.NewValidationError(errors.New("endorsements require end claim"))
 
 // Validation function for emblem tokens.
@@ -173,6 +174,10 @@ var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt
 
 	if _, ok := t.Get("ass"); !ok {
 		return ErrAssMissing
+	}
+
+	if _, ok := t.Get("log"); ok {
+		return ErrLogClaim
 	}
 
 	return nil
