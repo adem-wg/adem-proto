@@ -10,18 +10,29 @@ import (
 
 var ErrNoLogConfig = errors.New("no log claim")
 
-type VerificationResult struct {
-	LogURL string
-	LogID  string
-	Ok     bool
+type CTQueryResult struct {
+	LogURL   string
+	LogID    string
+	Ok       bool
+	subjects []string
 }
 
 // Verify that the given key was correctly committed to the Certificate
 // Transparency infrastructure for the given issuer.
-func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []VerificationResult {
-	verified := []VerificationResult{}
+func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQueryResult {
+	verified := VerifyInclusionConfig(logs)
+	for _, queryResult := range verified {
+		queryResult.Ok = VerifyBinding(queryResult, iss, key) == nil
+	}
+	return verified
+}
+
+// Verify that the hashes in the log configs are included in the respective CT
+// logs.
+func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
+	results := []CTQueryResult{}
 	for _, logConfig := range logs {
-		result := VerificationResult{LogID: logConfig.Id}
+		result := CTQueryResult{LogID: logConfig.Id}
 		if logConfig.Ver != "v1" {
 			log.Printf("log %s illegal version", logConfig.Id)
 			result.Ok = false
@@ -30,13 +41,14 @@ func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []Ver
 			result.Ok = false
 		} else {
 			result.LogURL = cl.BaseURI()
-			err := VerifyBinding(cl, logConfig.Hash.Raw, iss, key)
+			subjs, err := VerifyInclusion(cl, logConfig.Hash.Raw)
 			if err != nil {
 				log.Printf("not verify binding: %s", err)
 			}
 			result.Ok = err == nil
+			result.subjects = subjs
 		}
-		verified = append(verified, result)
+		results = append(results, result)
 	}
-	return verified
+	return results
 }

@@ -28,9 +28,9 @@ var ErrCertNotForIss = errors.New("certificate is not valid for issuer OI")
 var ErrCertNotForKey = errors.New("certificate is not valid for key")
 var ErrWrongEntryType = errors.New("do not recognize entry type")
 
-// Verify that the rootKey is correctly bound to the issuer OI by the CT entry
-// identified by hash. Queries will be made to the given CT client.
-func VerifyBinding(cl *client.LogClient, hash []byte, issuer string, rootKey jwk.Key) error {
+// Verify that the rootKey is correctly bound to the issuer OI in the
+// certificate's subjects referenced by the CT query.
+func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
 	kid, err := tokens.CalcKID(rootKey)
 	if err != nil {
 		log.Print("could not calculate KID")
@@ -44,29 +44,40 @@ func VerifyBinding(cl *client.LogClient, hash []byte, issuer string, rootKey jwk
 		return ErrIssNoHostName
 	}
 
+	if !util.Contains(q.subjects, issuerUrl.Hostname()) {
+		return ErrCertNotForIss
+	} else if !util.Contains(q.subjects, fmt.Sprintf("%s.adem-configuration.%s", kid, issuerUrl.Hostname())) {
+		return ErrCertNotForKey
+	}
+	return nil
+}
+
+// Verify that the given certificate hash is included in the log identified by
+// the respective client.
+func VerifyInclusion(cl *client.LogClient, hash []byte) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Minute))
 	defer cancel()
 
 	if sth, err := cl.GetSTH(ctx); err != nil {
 		log.Print("could not fetch STH")
-		return err
+		return nil, err
 	} else if err := cl.VerifySTHSignature(*sth); err != nil {
 		log.Print("STH not valid")
-		return err
+		return nil, err
 	} else if respH, err := cl.GetProofByHash(ctx, hash, sth.TreeSize); err != nil {
 		log.Print("could not fetch proof by hash")
-		return err
+		return nil, err
 	} else if respE, err := cl.GetEntryAndProof(ctx, uint64(respH.LeafIndex), sth.TreeSize); err != nil {
 		log.Print("could not fetch entry")
-		return err
+		return nil, err
 	} else if err := proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(respH.LeafIndex), sth.TreeSize, hash, respE.AuditPath, sth.SHA256RootHash[:]); err != nil {
 		log.Print("could not verify inclusion proof")
-		return err
+		return nil, err
 	} else {
 		var certT ct.CertificateTimestamp
 		if _, err := tls.Unmarshal(respE.LeafInput, &certT); err != nil {
 			log.Print("could not parse certificate timestamp")
-			return err
+			return nil, err
 		} else {
 			var cert *x509.Certificate
 			var err error
@@ -79,16 +90,10 @@ func VerifyBinding(cl *client.LogClient, hash []byte, issuer string, rootKey jwk
 			}
 			if err != nil {
 				log.Print("could not parse certificate")
-				return err
+				return nil, err
 			} else {
-				subjects := append(cert.DNSNames, cert.Subject.CommonName)
-				if !util.Contains(subjects, issuerUrl.Hostname()) {
-					return ErrCertNotForIss
-				} else if !util.Contains(subjects, fmt.Sprintf("%s.adem-configuration.%s", kid, issuerUrl.Hostname())) {
-					return ErrCertNotForKey
-				}
+				return append(cert.DNSNames, cert.Subject.CommonName), nil
 			}
 		}
 	}
-	return nil
 }
