@@ -20,10 +20,13 @@ var trustedKeyPEM bool
 var trustedKeyAlg string
 var tokensFilePath string
 
-func AddVerificationArgs() {
+func AddCTArgs() {
 	flag.BoolVar(&CTProviderGoogle, "google", true, "trust CT logs known to Google")
 	flag.BoolVar(&CTProviderApple, "apple", true, "trust CT logs known to Apple")
 	flag.StringVar(&CTProviderPattern, "logs", "", "trust CT logs from files")
+}
+
+func AddVerificationArgs() {
 	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")
 	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")

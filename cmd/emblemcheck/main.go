@@ -18,6 +18,7 @@ import (
 )
 
 func init() {
+	args.AddCTArgs()
 	args.AddVerificationArgs()
 	args.AddVerificationLocalArgs()
 }

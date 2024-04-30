@@ -17,6 +17,7 @@ import (
 
 func init() {
 	args.AddProbeArgs()
+	args.AddCTArgs()
 	args.AddVerificationArgs()
 }
 
