@@ -1,0 +1,30 @@
+{
+  "emb": {
+    "prp": [
+      "protective"
+    ],
+    "dst": [
+      "dns",
+      "udp"
+    ],
+    "ass": [
+      "[2a01::/16]"
+    ]
+  },
+  "end": true,
+  "iss": "https://auth.felixlinker.de",
+  "sub": "https://emblem.felixlinker.de",
+  "ver": "v1",
+  "log": [
+    {
+      "ver": "v1",
+      "id": "PxdLT9ciR1iUHWUchL4NEu2QN38fhWrrwb8ohez4ZG4=",
+      "hash": "vBJKKa9O0AChND1nydg6FagSqCM1LQm7hm2cnLdxDJ8="
+    },
+    {
+      "ver": "v1",
+      "id": "dv+IPwq2+5VRwmHM9Ye6NLSkzbsp3GhCCp/mZ0xaOnQ=",
+      "hash": "D6Nwz123ELyIU8AzJKEEsUZZyClML9uWdCpMdFEDgBw="
+    }
+  ]
+}

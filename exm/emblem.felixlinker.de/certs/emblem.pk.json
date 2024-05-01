@@ -1,0 +1,8 @@
+{
+  "alg": "ES512",
+  "crv": "P-521",
+  "kid": "eun2quayfhnkfdljsv2rgetx3o5l6xsphsiy4nxbm77fra72pp7q",
+  "kty": "EC",
+  "x": "ALJKm3-lwCAHxngV7F976rEUiARvxK66f--3WG_noHteDpoA9GnA6iBoCkO6pcJa8Uz_3QJnWKByx2PZ76aZO-t5",
+  "y": "AVucrJFaz0F7rUP-BjjPkC7HByRibY6BLCO0O1W5KB3ym_TIUgIkGJmEbTBNmb_ZCBWi557kjDl1HXnwVrA2ji0Z"
+}
