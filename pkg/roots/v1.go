@@ -14,9 +14,7 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/client"
-	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/transparency-dev/merkle/proof"
@@ -67,33 +65,22 @@ func VerifyInclusion(cl *client.LogClient, hash []byte) ([]string, error) {
 	} else if respH, err := cl.GetProofByHash(ctx, hash, sth.TreeSize); err != nil {
 		log.Print("could not fetch proof by hash")
 		return nil, err
-	} else if respE, err := cl.GetEntryAndProof(ctx, uint64(respH.LeafIndex), sth.TreeSize); err != nil {
-		log.Print("could not fetch entry")
-		return nil, err
-	} else if err := proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(respH.LeafIndex), sth.TreeSize, hash, respE.AuditPath, sth.SHA256RootHash[:]); err != nil {
+	} else if err := proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(respH.LeafIndex), sth.TreeSize, hash, respH.AuditPath, sth.SHA256RootHash[:]); err != nil {
 		log.Print("could not verify inclusion proof")
 		return nil, err
+	} else if respE, err := cl.GetEntries(ctx, respH.LeafIndex, respH.LeafIndex); err != nil || len(respE) != 1 {
+		log.Print("could not fetch entry")
+		return nil, err
 	} else {
-		var certT ct.CertificateTimestamp
-		if _, err := tls.Unmarshal(respE.LeafInput, &certT); err != nil {
-			log.Print("could not parse certificate timestamp")
-			return nil, err
+		var cert *x509.Certificate
+		if respE[0].Precert != nil {
+			cert = respE[0].Precert.TBSCertificate
+		} else if respE[0].X509Cert != nil {
+			cert = respE[0].X509Cert
 		} else {
-			var cert *x509.Certificate
-			var err error
-			if certT.EntryType == ct.PrecertLogEntryType {
-				cert, err = x509.ParseTBSCertificate(certT.PrecertEntry.TBSCertificate)
-			} else if certT.EntryType == ct.X509LogEntryType {
-				cert, err = x509.ParseCertificate(certT.X509Entry.Data)
-			} else {
-				err = ErrWrongEntryType
-			}
-			if err != nil {
-				log.Print("could not parse certificate")
-				return nil, err
-			} else {
-				return append(cert.DNSNames, cert.Subject.CommonName), nil
-			}
+			log.Print("could not parse certificate")
+			return nil, ErrWrongEntryType
 		}
+		return append(cert.DNSNames, cert.Subject.CommonName), nil
 	}
 }
