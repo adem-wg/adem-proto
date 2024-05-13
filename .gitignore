@@ -3,3 +3,4 @@
 /cmd/test
 /cmd/**/__debug_bin
 /.vscode
+**/tmp

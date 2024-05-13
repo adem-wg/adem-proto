@@ -122,6 +122,17 @@ func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationRe
 
 // Verify a slice of ADEM tokens.
 func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
+
+	// Early termination for empty rawTokens slice
+	if len(rawTokens) == 0 {
+		return ResultInvalid()
+	}
+
+	// Ensure trustedKeys is non-nil
+	if trustedKeys == nil {
+		trustedKeys = jwk.NewSet()
+	}
+
 	// We maintain a thread count for termination purposes. It might be that we
 	// cannot verify all token's verification key and must cancel verification.
 	threadCount := len(rawTokens)
@@ -223,7 +234,13 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		return ResultInvalid()
 	}
 
-	endorsedResults, endorsedBy := verifyEndorsed(emblem, root, endorsements, trustedKeys)
+	var endorsedResults []VerificationResult
+	var endorsedBy []string
+
+	if util.Contains(vfyResults, ORGANIZATIONAL) {
+		endorsedResults, endorsedBy = verifyEndorsed(emblem, root, endorsements, trustedKeys)
+	}
+
 	if util.Contains(endorsedResults, INVALID) {
 		return ResultInvalid()
 	}

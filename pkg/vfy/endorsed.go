@@ -21,6 +21,8 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 			continue
 		} else if end, _ := endorsement.Token.Get("end"); !end.(bool) {
 			continue
+		} else if _, logged := endorsement.Token.Get("log"); !logged {
+			continue
 		} else if root.VerificationKey.KeyID() != endorsedKID {
 			continue
 		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
