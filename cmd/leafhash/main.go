@@ -89,7 +89,7 @@ func main() {
 			if _, err := tls.Unmarshal(serializedSct.Val, &sct); err != nil {
 				log.Printf("could not deserialize the sct: %s", err)
 			} else {
-				if loadPreCert {
+				if !loadPreCert {
 					leaf := ct.CreateX509MerkleTreeLeaf(ct.ASN1Cert{Data: tbs}, sct.Timestamp)
 					if cfg, err := mkCfg(sct.LogID.KeyID[:], leaf); err != nil {
 						log.Printf("could not calculate leaf hash: %s", err)
