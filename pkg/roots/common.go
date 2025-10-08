@@ -43,7 +43,7 @@ func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
 			result.LogURL = cl.BaseURI()
 			subjs, err := VerifyInclusion(cl, logConfig.Hash.Raw)
 			if err != nil {
-				log.Printf("not verify binding: %s", err)
+				log.Printf("could not verify binding: %s", err)
 			}
 			result.Ok = err == nil
 			result.subjects = subjs
