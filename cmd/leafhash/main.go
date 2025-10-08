@@ -24,22 +24,33 @@ import (
 )
 
 var certPath string
-var issuerCertPath string
+var preCertPath string
 
 func init() {
-	flag.StringVar(&certPath, "cert", "", "path to certificate")
-	flag.StringVar(&issuerCertPath, "issuer", "", "path to issuer certificate (only necessary for precertificates)")
+	flag.StringVar(&certPath, "cert", "", "path to certificate (must not be pre-certificate)")
+	flag.StringVar(&preCertPath, "precert-fullchain", "", "path to file containing pre-certificate and certificate chain")
 }
 
-func loadCert(path string) (*x509.Certificate, error) {
-	if bs, err := os.ReadFile(path); err != nil {
-		return nil, err
-	} else if block, rest := pem.Decode(bs); len(rest) != 0 {
-		return nil, errors.New("could not decode PEM")
-	} else if cert, err := x509.ParseCertificate(block.Bytes); err != nil {
+func loadCerts(path string) ([]*x509.Certificate, error) {
+	if toDecode, err := os.ReadFile(path); err != nil {
 		return nil, err
 	} else {
-		return cert, nil
+		certs := make([]*x509.Certificate, 0)
+		var block *pem.Block
+		var rest []byte
+		for rest == nil || len(rest) > 0 {
+			if block, rest = pem.Decode(toDecode); block == nil {
+				return nil, errors.New("could not decode PEM")
+			} else {
+				toDecode = rest
+				if cert, err := x509.ParseCertificate(block.Bytes); err != nil {
+					return nil, err
+				} else {
+					certs = append(certs, cert)
+				}
+			}
+		}
+		return certs, nil
 	}
 }
 
@@ -61,27 +72,24 @@ func mkCfg(logId []byte, leaf *ct.MerkleTreeLeaf) (*tokens.LogConfig, error) {
 func main() {
 	flag.Parse()
 
-	var issuerCert *x509.Certificate
-	if issuerCertPath != "" {
-		var err error
-		issuerCert, err = loadCert(issuerCertPath)
-		if err != nil {
-			log.Fatalf("could not load issuer cert: %s", err)
-		}
+	loadPreCert := preCertPath != ""
+	loadPath := certPath
+	if loadPreCert {
+		loadPath = preCertPath
 	}
 
-	if cert, err := loadCert(certPath); err != nil {
-		log.Fatalf("could not load cert: %s", err)
-	} else if tbs, err := x509.RemoveSCTList(cert.RawTBSCertificate); err != nil {
+	if certChain, err := loadCerts(loadPath); err != nil {
+		log.Fatalf("could not load certificates: %s", err)
+	} else if tbs, err := x509.RemoveSCTList(certChain[0].RawTBSCertificate); err != nil {
 		log.Fatalf("could not remove SCT list: %s", err)
 	} else {
 		logs := []*tokens.LogConfig{}
-		for _, serializedSct := range cert.SCTList.SCTList {
+		for _, serializedSct := range certChain[0].SCTList.SCTList {
 			var sct ct.SignedCertificateTimestamp
 			if _, err := tls.Unmarshal(serializedSct.Val, &sct); err != nil {
 				log.Printf("could not deserialize the sct: %s", err)
 			} else {
-				if issuerCert == nil {
+				if loadPreCert {
 					leaf := ct.CreateX509MerkleTreeLeaf(ct.ASN1Cert{Data: tbs}, sct.Timestamp)
 					if cfg, err := mkCfg(sct.LogID.KeyID[:], leaf); err != nil {
 						log.Printf("could not calculate leaf hash: %s", err)
@@ -89,7 +97,7 @@ func main() {
 						logs = append(logs, cfg)
 					}
 				} else {
-					if leaf, err := ct.MerkleTreeLeafForEmbeddedSCT([]*x509.Certificate{cert, issuerCert}, sct.Timestamp); err != nil {
+					if leaf, err := ct.MerkleTreeLeafForEmbeddedSCT(certChain, sct.Timestamp); err != nil {
 						log.Printf("could not construct precert merkle tree leaf: %s", err)
 					} else if cfg, err := mkCfg(sct.LogID.KeyID[:], leaf); err != nil {
 						log.Printf("could not calculate leaf hash: %s", err)
