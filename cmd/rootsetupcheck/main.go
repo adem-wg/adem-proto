@@ -17,10 +17,13 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
+var OI string
+
 func init() {
 	args.AddPublicKeyArgs()
 	args.AddCTArgs()
 	args.AddVerificationArgs()
+	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")
 }
 
 func main() {
@@ -30,7 +33,7 @@ func main() {
 		log.Fatal("no public key to verify")
 	} else if err := pk.Set("alg", args.LoadPKAlg()); err != nil {
 		log.Fatal("could not set public key algorithm")
-	} else if iss := args.OI; iss == "" {
+	} else if OI == "" {
 		log.Fatal("no issuer given")
 	} else if bs, err := io.ReadAll(os.Stdin); err != nil {
 		log.Fatalf("could not read from stdin: %s", err)
@@ -41,7 +44,7 @@ func main() {
 		if err := json.Unmarshal(bs, &logs); err != nil {
 			log.Fatalf("could not decode json: %s", err)
 		} else {
-			results := roots.VerifyBindingCerts(iss, pk, logs)
+			results := roots.VerifyBindingCerts(OI, pk, logs)
 			for _, r := range results {
 				var msg string
 				if r.Ok {

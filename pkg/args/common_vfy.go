@@ -14,7 +14,6 @@ import (
 var CTProviderGoogle bool
 var CTProviderApple bool
 var CTProviderPattern string
-var OI string
 var trustedKeyPath string
 var trustedKeyPEM bool
 var trustedKeyAlg string
@@ -28,7 +27,6 @@ func AddCTArgs() {
 }
 
 func AddVerificationArgs() {
-	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")
 	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
 	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
 	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
