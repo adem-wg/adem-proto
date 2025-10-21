@@ -55,6 +55,7 @@ func verifySignedOrganizational(emblem *ADEMToken, endorsements []*ADEMToken, tr
 
 	_, rootLogged := root.Token.Get("log")
 	if emblem.Token.Issuer() != "" && !rootLogged {
+		log.Print("emblem contains issuer but provides no root key commitment")
 		return []VerificationResult{INVALID}, nil
 	} else if rootLogged {
 		results = append(results, ORGANIZATIONAL)
