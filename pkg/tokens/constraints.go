@@ -10,6 +10,10 @@ import (
 // Check that the given emblem's ass claim complies with the given ass
 // constraints.
 func checkAssetConstraint(emblem jwt.Token, constraints EmblemConstraints) bool {
+	if len(constraints.Assets) == 0 {
+		return true
+	}
+
 	ass, _ := emblem.Get("ass")
 	for _, ai := range ass.([]*ident.AI) {
 		match := false
