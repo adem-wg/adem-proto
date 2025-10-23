@@ -21,7 +21,7 @@ var SetVerifyJWK bool
 
 func AddSigningArgs() {
 	flag.StringVar(&alg, "alg", "", "signing algorithm")
-	flag.Int64Var(&lifetime, "lifetime", 172800, "emblem validity period")
+	flag.Int64Var(&lifetime, "lifetime", 172800, "emblem validity period; will be ignored if proto specifies exp")
 	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
 	flag.BoolVar(&skeyPEM, "skey-pem", true, "secret key is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
@@ -75,7 +75,7 @@ func LoadClaimsProto() jwt.Token {
 		log.Fatal("no --proto arg")
 	}
 
-	claimsProto, err := jwt.ReadFile(protoPath, jwt.WithVerify(false))
+	claimsProto, err := jwt.ReadFile(protoPath, jwt.WithVerify(false) ,jwt.WithValidate(false))
 	if err != nil {
 		log.Fatalf("cannot parse proto file: %s", err)
 	}

@@ -48,11 +48,20 @@ func prepToken(t jwt.Token, lifetime int64) error {
 	if err := t.Set("iat", iat); err != nil {
 		return err
 	}
-	if err := t.Set("nbf", iat); err != nil {
+
+	// Set nbf to iat if not already present
+	nbf := iat
+	if _, ok := t.Get("nbf"); ok {
+		nbf = t.NotBefore().Unix()
+	} else if err := t.Set("nbf", iat); err != nil {
 		return err
 	}
-	if err := t.Set("exp", iat+lifetime); err != nil {
-		return err
+
+	// Only set lifetime if not already present
+	if _, ok := t.Get("exp"); !ok {
+		if err := t.Set("exp", nbf+lifetime); err != nil {
+			return err
+		}
 	}
 	return nil
 }
