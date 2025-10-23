@@ -145,21 +145,23 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 		log.Printf("could not decode payload: %s", e)
 		err = e
 	} else if logs, ok := t.Get("log"); ok {
-		headerKey := sig.ProtectedHeaders().JWK()
-		for _, r := range roots.VerifyBindingCerts(t.Issuer(), headerKey, logs.([]*tokens.LogConfig)) {
-			if !r.Ok {
-				log.Printf("could not verify root key commitment for log ID %s", r.LogID)
-				err = ErrRootKeyUnbound
-				break
-			}
-		}
-
 		if len(logs.([]*tokens.LogConfig)) == 0 {
 			err = ErrLogsEmpty
-		}
+		} else if _, hasHeaderKey := sig.ProtectedHeaders().Get("jwk"); !hasHeaderKey {
+			err = ErrNoKeyFound
+		} else {
+			headerKey := sig.ProtectedHeaders().JWK()
+			for _, r := range roots.VerifyBindingCerts(t.Issuer(), headerKey, logs.([]*tokens.LogConfig)) {
+				if !r.Ok {
+					log.Printf("could not verify root key commitment for log ID %s", r.LogID)
+					err = ErrRootKeyUnbound
+					break
+				}
+			}
 
-		if err == nil {
-			km.put(headerKey)
+			if err == nil {
+				km.put(headerKey)
+			}
 		}
 	}
 
