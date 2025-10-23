@@ -16,19 +16,14 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 			log.Printf("could not not get endorsed kid: %s", err)
 			continue
 		} else if root.Token.Issuer() != endorsement.Token.Subject() {
-			log.Print("endorsement has wrong subject")
 			continue
 		} else if endorsement.Token.Issuer() == "" {
-			log.Print("endorsement has no issuer")
 			continue
 		} else if end, _ := endorsement.Token.Get("end"); !end.(bool) {
-			log.Print("external endorsement is for assets")
 			continue
 		} else if _, logged := endorsement.Token.Get("log"); !logged {
-			log.Print("endorsement misses root key commitment")
 			continue
 		} else if root.VerificationKey.KeyID() != endorsedKID {
-			log.Print("endorsement endorses wrong key")
 			continue
 		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
 			log.Printf("emblem does not comply with endorsement constraints: %s", err)
