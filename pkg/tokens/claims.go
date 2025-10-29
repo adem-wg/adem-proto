@@ -195,8 +195,6 @@ var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token
 		if !check {
 			return ErrIllegalType
 		}
-	} else {
-		return ErrEndMissing
 	}
 
 	return nil
