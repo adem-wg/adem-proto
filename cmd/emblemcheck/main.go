@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -34,8 +35,11 @@ var tokenGroup = 5
 var tokenReg *regexp.Regexp = regexp.MustCompile(`^adem-((emb|end)-\d+)(-p(\d+))?=(.+)`)
 
 func loadTokensDNS() ([][]byte, error) {
+    if _, err := net.LookupIP(args.AssetDomainName); err != nil {
+        return nil, err
+    }
 	if records, err := net.LookupTXT(args.AssetDomainName); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("no TXT record for %s found", args.AssetDomainName)
 	} else {
 		tokens := map[string][]string{}
 		for _, record := range records {
