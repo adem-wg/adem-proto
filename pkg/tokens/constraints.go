@@ -7,15 +7,15 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
-// Check that the given emblem's ass claim complies with the given ass
+// Check that the given emblem's bearers claim complies with the given bearers
 // constraints.
 func checkAssetConstraint(emblem jwt.Token, constraints EmblemConstraints) bool {
 	if len(constraints.Assets) == 0 {
 		return true
 	}
 
-	ass, _ := emblem.Get("ass")
-	for _, ai := range ass.([]*ident.AI) {
+	bearers, _ := emblem.Get("bearers")
+	for _, ai := range bearers.([]*ident.AI) {
 		match := false
 		for _, constraint := range constraints.Assets {
 			if constraint.MoreGeneral(ai) {

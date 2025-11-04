@@ -18,7 +18,7 @@ import (
 func init() {
 	jwt.RegisterCustomField("log", []*LogConfig{})
 	jwt.RegisterCustomField("key", EmbeddedKey{})
-	jwt.RegisterCustomField("ass", []*ident.AI{})
+	jwt.RegisterCustomField("bearers", []*ident.AI{})
 	jwt.RegisterCustomField("emb", EmblemConstraints{})
 	jwt.RegisterCustomField("ver", "")
 }
@@ -108,7 +108,7 @@ func (cm *ChannelMask) MarshalJSON() ([]byte, error) {
 type EmblemConstraints struct {
 	Purpose      *PurposeMask `json:"prp,omitempty"`
 	Distribution *ChannelMask `json:"dst,omitempty"`
-	Assets       []*ident.AI  `json:"ass,omitempty"`
+	Assets       []*ident.AI  `json:"bearers,omitempty"`
 	Window       *int         `json:"wnd,omitempty"`
 }
 
@@ -162,7 +162,7 @@ func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
 
 var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))
 var ErrIllegalType = jwt.NewValidationError(errors.New("illegal claim type"))
-var ErrAssMissing = jwt.NewValidationError(errors.New("emblems require ass claim"))
+var ErrAssMissing = jwt.NewValidationError(errors.New("emblems require bearers claim"))
 var ErrLogClaim = jwt.NewValidationError(errors.New("emblems must not contain a log claim"))
 var ErrEndMissing = jwt.NewValidationError(errors.New("endorsements require end claim"))
 
@@ -172,7 +172,7 @@ var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt
 		return err
 	}
 
-	if _, ok := t.Get("ass"); !ok {
+	if _, ok := t.Get("bearers"); !ok {
 		return ErrAssMissing
 	}
 

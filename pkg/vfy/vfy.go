@@ -37,8 +37,8 @@ func (res VerificationResults) Print() {
 	lns = append(lns, fmt.Sprintf("- Security levels:    %s", strings.Join(resultsStrs, ", ")))
 	if len(res.protected) > 0 {
 		assets := make([]string, 0, len(res.protected))
-		for _, ass := range res.protected {
-			assets = append(assets, ass.String())
+		for _, asset := range res.protected {
+			assets = append(assets, asset.String())
 		}
 		lns = append(lns, fmt.Sprintf("- Protected assets:   %s", strings.Join(assets, ", ")))
 	}
@@ -204,8 +204,8 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 				emblem = t
 			}
 
-			ass, _ := emblem.Token.Get("ass")
-			protected = ass.([]*ident.AI)
+			bearers, _ := emblem.Token.Get("bearers")
+			protected = bearers.([]*ident.AI)
 			if emblem.Headers.Algorithm() == jwa.NoSignature {
 				return VerificationResults{
 					results:   []VerificationResult{UNSIGNED},
