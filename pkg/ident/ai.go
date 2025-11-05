@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/adem-wg/adem-proto/pkg/util"
@@ -21,7 +19,6 @@ type AI struct {
 	domain   []string
 	ipAddr   net.IP
 	ipPrefix *net.IPNet
-	port     *uint16
 }
 
 func joinDomain(labels []string) string {
@@ -35,10 +32,6 @@ func joinDomain(labels []string) string {
 }
 
 func (ai *AI) MoreGeneral(than *AI) bool {
-	if ai.port != nil && (ai.port != than.port || *ai.port != *than.port) {
-		return false
-	}
-
 	if ai.domain != nil {
 		if len(than.domain) == 0 {
 			return false
@@ -78,22 +71,12 @@ func (ai *AI) UnmarshalJSON(bs []byte) error {
 		ai.domain = parsed.domain
 		ai.ipAddr = parsed.ipAddr
 		ai.ipPrefix = parsed.ipPrefix
-		ai.port = parsed.port
 		return nil
 	}
 }
 
-var portReg *regexp.Regexp = regexp.MustCompile(`:(\d+)$`)
-
 func ParseAI(aiStr string) (*AI, error) {
-	var addr, port string
-	matches := portReg.FindStringSubmatch(aiStr)
-	if len(matches) == 2 {
-		addr = aiStr[:len(aiStr)-len(matches[0])]
-		port = matches[1]
-	} else {
-		addr = aiStr
-	}
+	addr := aiStr
 
 	if addr == "" {
 		return nil, ErrIllegalAI
@@ -136,24 +119,10 @@ func ParseAI(aiStr string) (*AI, error) {
 		}
 	}
 
-	if port != "" {
-		if p, err := strconv.ParseInt(port, 10, 16); err != nil {
-			return nil, err
-		} else {
-			unsiged := uint16(p)
-			ai.port = &unsiged
-		}
-	}
-
 	return &ai, nil
 }
 
 func (ai *AI) String() string {
-	var port string
-	if ai.port != nil {
-		port = fmt.Sprintf(":%d", *ai.port)
-	}
-
 	var addr string
 	if ai.domain != nil {
 		addr = strings.Join(ai.domain, ".")
@@ -164,7 +133,7 @@ func (ai *AI) String() string {
 	} else {
 		panic("illegal state")
 	}
-	return addr + port
+	return addr
 }
 
 func (ai *AI) MarshalJSON() ([]byte, error) {
