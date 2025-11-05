@@ -3,7 +3,6 @@ module github.com/adem-wg/adem-proto
 go 1.19
 
 require (
-	github.com/cyberphone/json-canonicalization v0.0.0-20220623050100-57a0ce2678a7
 	github.com/google/certificate-transparency-go v1.1.4
 	github.com/lestrrat-go/jwx/v2 v2.0.8
 	github.com/transparency-dev/merkle v0.0.1

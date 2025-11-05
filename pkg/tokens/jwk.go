@@ -2,13 +2,11 @@ package tokens
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto"
 	"encoding/base32"
-	"encoding/json"
 	"errors"
 	"strings"
 
-	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -49,13 +47,10 @@ func CalcKID(key jwk.Key) (string, error) {
 		return "", err
 	} else if err := pk.Remove("kid"); err != nil {
 		return "", err
-	} else if jsonKey, err := json.Marshal(pk); err != nil {
-		return "", err
-	} else if canonical, err := jsoncanonicalizer.Transform(jsonKey); err != nil {
+	} else if digest, err := pk.Thumbprint(crypto.SHA256); err != nil {
 		return "", err
 	} else {
-		h := sha256.Sum256(canonical)
-		b32 := base32.StdEncoding.EncodeToString(h[:])
+		b32 := base32.StdEncoding.EncodeToString(digest)
 		return strings.ToLower(strings.TrimRight(b32, "=")), nil
 	}
 }
