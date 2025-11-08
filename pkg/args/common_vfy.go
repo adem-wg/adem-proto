@@ -15,7 +15,7 @@ var CTProviderGoogle bool
 var CTProviderApple bool
 var CTProviderPattern string
 var trustedKeyPath string
-var trustedKeyPEM bool
+var trustedKeyJWK bool
 var trustedKeyAlg string
 var tokensFilePath string
 var AssetDomainName string
@@ -27,8 +27,8 @@ func AddCTArgs() {
 }
 
 func AddVerificationArgs() {
-	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s)")
-	flag.BoolVar(&trustedKeyPEM, "trusted-pk-pem", true, "is the trusted key encoded as PEM?")
+	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s); either PEM file or JWK set")
+	flag.BoolVar(&trustedKeyJWK, "trusted-pk-jwk", false, "are the trusted keys encoded as JWK? Default is PEM")
 	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
 }
 
@@ -70,7 +70,7 @@ func LoadTrustedKeys() jwk.Set {
 		return jwk.NewSet()
 	}
 
-	if ks, err := loadKeys(trustedKeyPath, trustedKeyPEM); err != nil {
+	if ks, err := loadKeys(trustedKeyPath, trustedKeyJWK); err != nil {
 		log.Fatalf("could not load trusted keys: %s", err)
 		return nil
 	} else {

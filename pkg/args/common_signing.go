@@ -15,7 +15,7 @@ var skeyFile string
 var skeyPEM bool
 var protoPath string
 var publicKeyPath string
-var publicKeyPEM bool
+var publicKeyJWK bool
 var publicKeyAlg string
 var SetVerifyJWK bool
 
@@ -29,8 +29,8 @@ func AddSigningArgs() {
 }
 
 func AddPublicKeyArgs() {
-	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public key (for endorsements or verification)")
-	flag.BoolVar(&publicKeyPEM, "pk-pem", true, "public key is PEM")
+	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public keys (for endorsements or verification) either PEM file or JWK set")
+	flag.BoolVar(&publicKeyJWK, "pk-jwk", false, "are the keys encoded as JWK? Default format is PEM")
 	flag.StringVar(&publicKeyAlg, "pk-alg", "", "public key alg (if omitted, will use -alg)")
 }
 
@@ -75,7 +75,7 @@ func LoadClaimsProto() jwt.Token {
 		log.Fatal("no --proto arg")
 	}
 
-	claimsProto, err := jwt.ReadFile(protoPath, jwt.WithVerify(false) ,jwt.WithValidate(false))
+	claimsProto, err := jwt.ReadFile(protoPath, jwt.WithVerify(false), jwt.WithValidate(false))
 	if err != nil {
 		log.Fatalf("cannot parse proto file: %s", err)
 	}
@@ -83,7 +83,7 @@ func LoadClaimsProto() jwt.Token {
 }
 
 func LoadPublicKey() jwk.Key {
-	if ks, err := loadKeys(publicKeyPath, publicKeyPEM); err == ErrEmptyPath {
+	if ks, err := loadKeys(publicKeyPath, publicKeyJWK); err == ErrEmptyPath {
 		return nil
 	} else if err != nil {
 		log.Fatalf("could not load pk: %s", err)
