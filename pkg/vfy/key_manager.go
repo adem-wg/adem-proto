@@ -28,16 +28,24 @@ type keyManager struct {
 	// promise for their verification key.
 	init sync.WaitGroup
 	// Maps KIDs to keys. Only contains verified keys.
-	keys map[string]jwk.Key
+	keys         map[string]jwk.Key
+	keysVerified map[string]bool
 	// Promises waiting for keys.
 	listeners map[string][]util.Promise[jwk.Key]
 }
 
 // Creates a new key manager to verify [numThreads]-many tokens asynchronously.
-func NewKeyManager(numThreads int) *keyManager {
+func NewKeyManager(untrustedKeys []jwk.Key, numThreads int) *keyManager {
 	var km keyManager
 	km.init.Add(numThreads)
 	km.keys = make(map[string]jwk.Key)
+	for _, k := range untrustedKeys {
+		if kid, err := tokens.GetKID(k); err == nil {
+			km.keys[kid] = k
+		}
+	}
+
+	km.keysVerified = make(map[string]bool)
 	km.listeners = make(map[string][]util.Promise[jwk.Key])
 	return &km
 }
@@ -89,12 +97,14 @@ func (km *keyManager) put(k jwk.Key) bool {
 		return false
 	}
 
-	_, ok := km.keys[kid]
-	if ok {
+	_, ok1 := km.keys[kid]
+	verified, ok2 := km.keysVerified[kid]
+	if ok1 && verified && ok2 {
 		return false
 	}
 
 	km.keys[kid] = k
+	km.keysVerified[kid] = true
 	promises := km.listeners[kid]
 	if len(promises) == 0 {
 		return false
@@ -116,7 +126,8 @@ func (km *keyManager) get(kid string) util.Promise[jwk.Key] {
 
 	c := util.NewPromise[jwk.Key]()
 	k, ok := km.keys[kid]
-	if ok {
+	verified, ok2 := km.keysVerified[kid]
+	if ok && verified && ok2 {
 		c.Fulfill(k)
 	} else {
 		km.listeners[kid] = append(km.listeners[kid], c)
@@ -145,12 +156,23 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 		log.Printf("could not decode payload: %s", e)
 		err = e
 	} else if logs, ok := t.Get("log"); ok {
+		_, hasHeaderKey := sig.ProtectedHeaders().Get("jwk")
+		_, hasHeaderKeyID := sig.ProtectedHeaders().Get("kid")
+		_, haveKey := km.keys[sig.ProtectedHeaders().KeyID()]
 		if len(logs.([]*tokens.LogConfig)) == 0 {
 			err = ErrLogsEmpty
-		} else if _, hasHeaderKey := sig.ProtectedHeaders().Get("jwk"); !hasHeaderKey {
+		} else if !hasHeaderKey && !(hasHeaderKeyID && haveKey) {
 			err = ErrNoKeyFound
 		} else {
-			headerKey := sig.ProtectedHeaders().JWK()
+			var headerKey jwk.Key
+			if hasHeaderKey {
+				headerKey = sig.ProtectedHeaders().JWK()
+			} else {
+				// This is the only case where we access the key map without checking
+				// for keys to have been verified.
+				headerKey = km.keys[sig.ProtectedHeaders().KeyID()]
+			}
+
 			for _, r := range roots.VerifyBindingCerts(t.Issuer(), headerKey, logs.([]*tokens.LogConfig)) {
 				if !r.Ok {
 					log.Printf("could not verify root key commitment for log ID %s", r.LogID)

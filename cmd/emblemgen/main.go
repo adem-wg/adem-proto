@@ -28,15 +28,18 @@ func main() {
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
 			args.LoadLifetime(),
+			args.LoadSetVerifyJwk(),
 		)
 	} else {
 		_, signedToken, err = gen.SignEndorsement(
 			args.LoadPrivateKey(),
 			args.LoadAlg(),
+			args.LoadSetVerifyJwk(),
 			args.LoadClaimsProto(),
 			endorseKey,
 			args.LoadPKAlg(),
 			args.LoadLifetime(),
+			args.LoadSignKid(),
 		)
 	}
 

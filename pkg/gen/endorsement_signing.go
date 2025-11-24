@@ -9,10 +9,10 @@ import (
 )
 
 func (cfg *EndorsementConfig) SignToken() (jwt.Token, []byte, error) {
-	return SignEndorsement(cfg.sk, cfg.alg, cfg.proto, cfg.endorse, cfg.endorseAlg, cfg.lifetime)
+	return SignEndorsement(cfg.sk, cfg.alg, cfg.setJwk, cfg.proto, cfg.endorse, cfg.endorseAlg, cfg.lifetime, cfg.signKid)
 }
 
-func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, token jwt.Token, endorseKey jwk.Key, pkAlg *jwa.SignatureAlgorithm, lifetime int64) (jwt.Token, []byte, error) {
+func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, setJwk bool, token jwt.Token, endorseKey jwk.Key, pkAlg *jwa.SignatureAlgorithm, lifetime int64, signKid bool) (jwt.Token, []byte, error) {
 	if err := prepToken(token, lifetime); err != nil {
 		return nil, nil, err
 	}
@@ -25,9 +25,16 @@ func SignEndorsement(secretKey jwk.Key, signingAlg *jwa.SignatureAlgorithm, toke
 	} else if err := tokens.SetKID(endorseKey, false); err != nil {
 		return nil, nil, err
 	}
-	token.Set("key", endorseKey)
 
-	compact, err := signWithHeaders(token, consts.EndorsementCty, signingAlg, secretKey)
+	if kid, err := tokens.GetKID(endorseKey); signKid && err == nil {
+		token.Set("key", kid)
+	} else if err != nil {
+		return nil, nil, err
+	} else {
+		token.Set("key", endorseKey)
+	}
+
+	compact, err := signWithHeaders(token, consts.EndorsementCty, signingAlg, secretKey, setJwk)
 	if err != nil {
 		return nil, nil, err
 	}

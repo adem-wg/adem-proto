@@ -17,7 +17,9 @@ var protoPath string
 var publicKeyPath string
 var publicKeyJWK bool
 var publicKeyAlg string
-var SetVerifyJWK bool
+var setVerifyJWK bool
+var signKid bool
+var keysCommand string
 
 func AddSigningArgs() {
 	flag.StringVar(&alg, "alg", "", "signing algorithm")
@@ -25,12 +27,17 @@ func AddSigningArgs() {
 	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
 	flag.BoolVar(&skeyPEM, "skey-pem", true, "secret key is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
-	flag.BoolVar(&SetVerifyJWK, "set-jwk", false, "true to include verification key in header")
+	flag.BoolVar(&setVerifyJWK, "set-jwk", false, "true to include verification key in header")
+	flag.BoolVar(&signKid, "sign-kid", false, "true to only sign a hash of the key")
+}
+
+func AddKeyArgs() {
+	flag.StringVar(&keysCommand, "cmd", "", "command to execute ('gen-kid' or 'encode')")
 }
 
 func AddPublicKeyArgs() {
 	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public keys (for endorsements or verification) either PEM file or JWK set")
-	flag.BoolVar(&publicKeyJWK, "pk-jwk", false, "are the keys encoded as JWK? Default format is PEM")
+	flag.BoolVar(&publicKeyJWK, "pk-jwk", false, "are the keys encoded as JWK? If not set, PEM is assumed.")
 	flag.StringVar(&publicKeyAlg, "pk-alg", "", "public key alg (if omitted, will use -alg)")
 }
 
@@ -94,4 +101,16 @@ func LoadPublicKey() jwk.Key {
 	} else {
 		return k
 	}
+}
+
+func LoadSetVerifyJwk() bool {
+	return setVerifyJWK
+}
+
+func LoadSignKid() bool {
+	return signKid
+}
+
+func LoadKeysCommand() string {
+	return keysCommand
 }

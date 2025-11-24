@@ -3,7 +3,6 @@ package gen
 import (
 	"time"
 
-	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -23,23 +22,26 @@ type EmblemConfig struct {
 	alg      *jwa.SignatureAlgorithm
 	proto    jwt.Token
 	lifetime int64
+	setJwk   bool
 }
 
-func MkEmblemCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64) *EmblemConfig {
-	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime}
+func MkEmblemCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64, setJwk bool) *EmblemConfig {
+	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime, setJwk: setJwk}
 }
 
 type EndorsementConfig struct {
 	EmblemConfig
 	endorse    jwk.Key
 	endorseAlg *jwa.SignatureAlgorithm
+	signKid    bool
 }
 
-func MkEndorsementCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, proto jwt.Token, endorse jwk.Key, endorseAlg *jwa.SignatureAlgorithm, lifetime int64) *EndorsementConfig {
+func MkEndorsementCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, setJwk bool, proto jwt.Token, endorse jwk.Key, endorseAlg *jwa.SignatureAlgorithm, lifetime int64, signKid bool) *EndorsementConfig {
 	return &EndorsementConfig{
-		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime),
+		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime, setJwk),
 		endorse:      endorse,
 		endorseAlg:   endorseAlg,
+		signKid:      signKid,
 	}
 }
 
@@ -66,7 +68,7 @@ func prepToken(t jwt.Token, lifetime int64) error {
 	return nil
 }
 
-func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, signingKey jwk.Key) ([]byte, error) {
+func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, signingKey jwk.Key, setJwk bool) ([]byte, error) {
 	headers := jws.NewHeaders()
 	headers.Set("cty", string(cty))
 	verifKey, err := signingKey.PublicKey()
@@ -78,7 +80,7 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, s
 		return nil, err
 	}
 
-	if args.SetVerifyJWK {
+	if setJwk {
 		headers.Set("jwk", verifKey)
 	} else {
 		headers.Set("kid", verifKey.KeyID())

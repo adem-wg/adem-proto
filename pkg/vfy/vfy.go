@@ -2,6 +2,7 @@ package vfy
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
@@ -133,10 +134,26 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		trustedKeys = jwk.NewSet()
 	}
 
+	keys := make([]jwk.Key, 0)
+	notKeys := make([][]byte, 0, len(rawTokens))
+	for _, t := range rawTokens {
+		if k, err := x509.ParsePKIXPublicKey(t); err != nil {
+			notKeys = append(notKeys, t)
+		} else {
+			if jwkKey, err := jwk.FromRaw(k); err != nil {
+				log.Printf("could not create JWK from key: %s", err)
+			} else if err := tokens.SetKID(jwkKey, true); err != nil {
+				log.Printf("could not set KID for key: %s", err)
+			} else {
+				keys = append(keys, jwkKey)
+			}
+		}
+	}
+
 	// We maintain a thread count for termination purposes. It might be that we
 	// cannot verify all token's verification key and must cancel verification.
-	threadCount := len(rawTokens)
-	km := NewKeyManager(len(rawTokens))
+	threadCount := len(notKeys)
+	km := NewKeyManager(keys, len(notKeys))
 	// Put trusted public keys into key manager. This allows for termination for
 	// tokens without issuer.
 	ctx := context.TODO()
@@ -146,7 +163,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 	results := make(chan *TokenVerificationResult)
 	// Start verification threads
-	for _, rawToken := range rawTokens {
+	for _, rawToken := range notKeys {
 		go vfyToken(rawToken, km, results)
 	}
 

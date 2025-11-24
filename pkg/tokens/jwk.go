@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"encoding/base32"
+	"encoding/base64"
 	"errors"
 	"strings"
 
@@ -95,4 +96,14 @@ func SetKIDs(set jwk.Set, alg *jwa.SignatureAlgorithm) (jwk.Set, error) {
 		}
 	}
 	return withKIDs, nil
+}
+
+func EncodePublicKey(key jwk.Key) (string, error) {
+	if k, err := key.PublicKey(); err != nil {
+		return "", err
+	} else if _, bs, err := jwk.EncodeX509(k); err != nil {
+		return "", err
+	} else {
+		return base64.StdEncoding.EncodeToString(bs), nil
+	}
 }
