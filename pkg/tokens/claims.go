@@ -10,15 +10,18 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
+
+type Log = []*LogConfig
+type Bearers = []*ident.AI
 
 // Register JWT fields of emblems for easier parsing.
 func init() {
-	jwt.RegisterCustomField("log", []*LogConfig{})
+	jwt.RegisterCustomField("log", Log{})
 	jwt.RegisterCustomField("key", EmbeddedKey{})
-	jwt.RegisterCustomField("bearers", []*ident.AI{})
+	jwt.RegisterCustomField("bearers", Bearers{})
 	jwt.RegisterCustomField("emb", EmblemConstraints{})
 	jwt.RegisterCustomField("ver", "")
 }
@@ -160,23 +163,23 @@ func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
 	return
 }
 
-var ErrIllegalVersion = jwt.NewValidationError(errors.New("illegal version"))
-var ErrIllegalType = jwt.NewValidationError(errors.New("illegal claim type"))
-var ErrAssMissing = jwt.NewValidationError(errors.New("emblems require bearers claim"))
-var ErrLogClaim = jwt.NewValidationError(errors.New("emblems must not contain a log claim"))
-var ErrEndMissing = jwt.NewValidationError(errors.New("endorsements require end claim"))
+var ErrIllegalVersion = errors.New("illegal version")
+var ErrIllegalType = errors.New("illegal claim type")
+var ErrAssMissing = errors.New("emblems require bearers claim")
+var ErrLogClaim = errors.New("emblems must not contain a log claim")
+var ErrEndMissing = errors.New("endorsements require end claim")
 
 // Validation function for emblem tokens.
-var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
+var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) error {
 	if err := validateCommon(t); err != nil {
 		return err
 	}
 
-	if _, ok := t.Get("bearers"); !ok {
+	if !t.Has("bearers") {
 		return ErrAssMissing
 	}
 
-	if _, ok := t.Get("log"); ok {
+	if t.Has("log") {
 		return ErrLogClaim
 	}
 
@@ -184,15 +187,15 @@ var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt
 })
 
 // Validation function for endorsement tokens.
-var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) jwt.ValidationError {
+var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) error {
 	if err := validateCommon(t); err != nil {
 		return err
 	}
 
-	end, ok := t.Get("end")
-	if ok {
-		_, check := end.(bool)
-		if !check {
+	var end bool
+	err := t.Get("end", &end)
+	if err == nil {
+		if !end {
 			return ErrIllegalType
 		}
 	}
@@ -217,17 +220,18 @@ func validateOI(oi string) error {
 }
 
 // Validate claims shared by emblems and endorsements.
-func validateCommon(t jwt.Token) jwt.ValidationError {
+func validateCommon(t jwt.Token) error {
 	if err := jwt.Validate(t); err != nil {
-		return err.(jwt.ValidationError)
+		return err
 	}
 
-	if ver, ok := t.Get(`ver`); !ok || ver.(string) != string(consts.V1) {
+	var ver string
+	if err := t.Get("ver", &ver); err != nil || ver != string(consts.V1) {
 		return ErrIllegalVersion
 	}
 
-	if validateOI(t.Issuer()) != nil {
-		return jwt.ErrInvalidIssuer()
+	if iss, ok := t.Issuer(); ok && validateOI(iss) != nil {
+		return jwt.InvalidIssuerError()
 	}
 
 	return nil

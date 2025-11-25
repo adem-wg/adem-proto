@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 var ErrNoLogConfig = errors.New("no log claim")

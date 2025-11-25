@@ -1,16 +1,16 @@
 package tokens
 
 import (
-	"context"
 	"crypto"
+	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
 	"errors"
 	"strings"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var ErrNoEndorsedKey = errors.New("no endorsed key present")
@@ -19,9 +19,14 @@ var ErrAlgMissing = errors.New("input key misses algorithm")
 // Get the KID of a key endorsed in an emblem. If the endorsed key has no KID,
 // it will be calculated.
 func GetEndorsedKID(t jwt.Token) (string, error) {
-	if jwKey, ok := t.Get("key"); !ok {
-		return "", ErrNoEndorsedKey
-	} else if kid, err := GetKID(jwKey.(EmbeddedKey).Key); err != nil {
+	var jwKey EmbeddedKey
+	if err := t.Get("key", &jwKey); err != nil {
+		if errors.Is(err, jwt.ClaimNotFoundError()) {
+			return "", ErrNoEndorsedKey
+		} else {
+			return "", err
+		}
+	} else if kid, err := GetKID(jwKey.Key); err != nil {
 		return "", err
 	} else {
 		return kid, nil
@@ -30,8 +35,8 @@ func GetEndorsedKID(t jwt.Token) (string, error) {
 
 // Get a key's KID. If it has no KID, it will be calculated.
 func GetKID(key jwk.Key) (string, error) {
-	if key.KeyID() != "" {
-		return key.KeyID(), nil
+	if kid, ok := key.KeyID(); ok {
+		return kid, nil
 	}
 
 	return CalcKID(key)
@@ -42,9 +47,9 @@ func GetKID(key jwk.Key) (string, error) {
 func CalcKID(key jwk.Key) (string, error) {
 	if pk, err := key.PublicKey(); err != nil {
 		return "", err
-	} else if key.Algorithm() == nil || key.Algorithm().String() == "" {
+	} else if alg, ok := key.Algorithm(); !ok || alg.String() == "" {
 		return "", ErrAlgMissing
-	} else if err := pk.Set("alg", key.Algorithm()); err != nil {
+	} else if err := pk.Set("alg", alg); err != nil {
 		return "", err
 	} else if err := pk.Remove("kid"); err != nil {
 		return "", err
@@ -57,7 +62,7 @@ func CalcKID(key jwk.Key) (string, error) {
 }
 
 // Set a key's KID if not already present.
-func SetKID(key jwk.Key, force bool) error {
+func SetKID(key jwk.Key, force bool) (string, error) {
 	var kid string
 	var err error
 	if force {
@@ -67,29 +72,28 @@ func SetKID(key jwk.Key, force bool) error {
 	}
 
 	if err != nil {
-		return err
+		return kid, err
 	} else {
-		return key.Set("kid", kid)
+		return kid, key.Set("kid", kid)
 	}
 }
 
 // Calculate and set the KID of every key in the given set. Will override old
 // KIDs.
-func SetKIDs(set jwk.Set, alg *jwa.SignatureAlgorithm) (jwk.Set, error) {
+func SetKIDs(set jwk.Set, alg jwa.SignatureAlgorithm) (jwk.Set, error) {
 	withKIDs := jwk.NewSet()
-	ctx := context.TODO()
-	iter := set.Keys(ctx)
-	for iter.Next(ctx) {
-		k := iter.Pair().Value.(jwk.Key)
-		if pk, err := k.PublicKey(); err != nil {
+	for i := range set.Len() {
+		if k, ok := set.Key(i); !ok {
+			panic("index out of bounds")
+		} else if pk, err := k.PublicKey(); err != nil {
 			return nil, err
 		} else {
-			if pk.Algorithm().String() == "" {
+			if _, ok := pk.Algorithm(); !ok {
 				if err := pk.Set("alg", alg); err != nil {
 					return nil, err
 				}
 			}
-			if err := SetKID(pk, true); err != nil {
+			if _, err := SetKID(pk, true); err != nil {
 				return nil, err
 			}
 			withKIDs.AddKey(pk)
@@ -99,9 +103,12 @@ func SetKIDs(set jwk.Set, alg *jwa.SignatureAlgorithm) (jwk.Set, error) {
 }
 
 func EncodePublicKey(key jwk.Key) (string, error) {
-	if k, err := key.PublicKey(); err != nil {
+	var raw any
+	if pk, err := key.PublicKey(); err != nil {
 		return "", err
-	} else if _, bs, err := jwk.EncodeX509(k); err != nil {
+	} else if err := jwk.Export(pk, &raw); err != nil {
+		return "", err
+	} else if bs, err := x509.MarshalPKIXPublicKey(raw); err != nil {
 		return "", err
 	} else {
 		return base64.StdEncoding.EncodeToString(bs), nil

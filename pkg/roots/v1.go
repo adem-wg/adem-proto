@@ -16,7 +16,7 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/x509"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/transparency-dev/merkle/proof"
 	"github.com/transparency-dev/merkle/rfc6962"
 )

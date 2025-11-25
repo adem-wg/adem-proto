@@ -1,7 +1,6 @@
 package vfy
 
 import (
-	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -12,10 +11,10 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 type VerificationResults struct {
@@ -142,9 +141,9 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		} else if k, err := x509.ParsePKIXPublicKey(b64); err != nil {
 			notKeys = append(notKeys, t)
 		} else {
-			if jwkKey, err := jwk.FromRaw(k); err != nil {
+			if jwkKey, err := jwk.Import(k); err != nil {
 				log.Printf("could not create JWK from key: %s", err)
-			} else if err := tokens.SetKID(jwkKey, true); err != nil {
+			} else if _, err := tokens.SetKID(jwkKey, true); err != nil {
 				log.Printf("could not set KID for key: %s", err)
 			} else {
 				keys = append(keys, jwkKey)
@@ -158,10 +157,12 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	km := NewKeyManager(keys, len(notKeys))
 	// Put trusted public keys into key manager. This allows for termination for
 	// tokens without issuer.
-	ctx := context.TODO()
-	iter := trustedKeys.Keys(ctx)
-	for iter.Next(ctx) {
-		km.put(iter.Pair().Value.(jwk.Key))
+	for i := range trustedKeys.Len() {
+		if k, ok := trustedKeys.Key(i); !ok {
+			panic("index out of bounds")
+		} else {
+			km.put(k)
+		}
 	}
 	results := make(chan *TokenVerificationResult)
 	// Start verification threads
@@ -200,18 +201,24 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 				log.Printf("discarding invalid token: %s", result.err)
 			} else {
 				ts = append(ts, result.token)
-				if k, ok := result.token.Token.Get("key"); ok {
-					km.put(k.(tokens.EmbeddedKey).Key)
+				var k tokens.EmbeddedKey
+				if err := result.token.Token.Get("key", &k); err != nil {
+					if !errors.Is(err, jwt.ClaimNotFoundError()) {
+						log.Printf("Could not access key claim: %s\n", err)
+					}
+				} else {
+					km.put(k.Key)
 				}
 			}
 		}
 	}
 
 	var emblem *ADEMToken
-	var protected []*ident.AI
+	var protected tokens.Bearers
 	endorsements := []*ADEMToken{}
 	for _, t := range ts {
-		if t.Headers.ContentType() == string(consts.EmblemCty) {
+		cty, ok := t.Headers.ContentType()
+		if ok && cty == string(consts.EmblemCty) {
 			if emblem != nil {
 				// Multiple emblems
 				log.Print("Token set contains multiple emblems")
@@ -223,15 +230,20 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 				emblem = t
 			}
 
-			bearers, _ := emblem.Token.Get("bearers")
-			protected = bearers.([]*ident.AI)
-			if emblem.Headers.Algorithm() == jwa.NoSignature {
+			if err := emblem.Token.Get("bearers", &protected); err != nil {
+				if errors.Is(err, jwt.ClaimNotFoundError()) {
+					log.Printf("No bearers claim")
+				} else {
+					log.Printf("Could not access bearers claim: %s", err)
+				}
+				return ResultInvalid()
+			} else if alg, ok := emblem.Headers.Algorithm(); !ok || alg == jwa.NoSignature() {
 				return VerificationResults{
 					results:   []VerificationResult{UNSIGNED},
 					protected: protected,
 				}
 			}
-		} else if t.Headers.ContentType() == string(consts.EndorsementCty) {
+		} else if ok && cty == string(consts.EndorsementCty) {
 			err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EndorsementValidator))
 			if err != nil {
 				log.Printf("Invalid endorsement: %s", err)
@@ -239,7 +251,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 				endorsements = append(endorsements, t)
 			}
 		} else {
-			log.Printf("Token has wrong type: %s", t.Headers.ContentType())
+			log.Printf("Token has wrong type: %s", cty)
 		}
 	}
 
@@ -264,9 +276,10 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		return ResultInvalid()
 	}
 
+	iss, _ := root.Token.Issuer()
 	return VerificationResults{
 		results:    append(vfyResults, endorsedResults...),
-		issuer:     root.Token.Issuer(),
+		issuer:     iss,
 		endorsedBy: endorsedBy,
 		protected:  protected,
 	}

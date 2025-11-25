@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/roots"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 var CTProviderGoogle bool
@@ -78,10 +78,10 @@ func LoadTrustedKeys() jwk.Set {
 	}
 }
 
-func LoadTrustedKeysAlg() *jwa.SignatureAlgorithm {
-	if alg, err := loadAlgByString(trustedKeyAlg); err != nil {
-		log.Fatalf("no algorithm found: %s", err)
-		return nil
+func LoadTrustedKeysAlg() jwa.SignatureAlgorithm {
+	if alg, ok := jwa.LookupSignatureAlgorithm(trustedKeyAlg); !ok {
+		log.Fatalf("could not load trusted key algorithm: %s\n", trustedKeyAlg)
+		return jwa.NoSignature()
 	} else {
 		return alg
 	}

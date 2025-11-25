@@ -32,7 +32,7 @@ func main() {
 		log.Fatalf("could not get public key: %s", err)
 	} else if err := pk.Set("alg", pkAlg.String()); err != nil {
 		log.Fatalf("could not set alg: %s", err)
-	} else if err := tokens.SetKID(pk, true); err != nil {
+	} else if _, err := tokens.SetKID(pk, true); err != nil {
 		log.Fatalf("could not hash key: %s", err)
 	} else if bs, err := json.MarshalIndent(pk, "", "  "); err != nil {
 		log.Fatalf("could not marshall JSON: %s", err)

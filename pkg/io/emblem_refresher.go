@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/adem-wg/adem-proto/pkg/gen"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 type EmblemRefresher struct {
@@ -23,7 +23,8 @@ func MkRefresher(cfg *gen.EmblemConfig, threshold int64) *EmblemRefresher {
 }
 
 func (er *EmblemRefresher) SignToken() (jwt.Token, []byte, error) {
-	if er.lastToken == nil || er.lastToken.Expiration().Unix() <= time.Now().Unix()+er.threshold {
+	exp, ok := er.lastToken.Expiration()
+	if er.lastToken == nil || !ok || exp.Unix() <= time.Now().Unix()+er.threshold {
 		er.lastToken, er.lastTokenRaw, er.lastErr = er.emblemCfg.SignToken()
 	}
 	return er.lastToken, er.lastTokenRaw, er.lastErr

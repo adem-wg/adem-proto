@@ -3,8 +3,7 @@ package tokens
 import (
 	"errors"
 
-	"github.com/adem-wg/adem-proto/pkg/ident"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 // Check that the given emblem's bearers claim complies with the given bearers
@@ -14,49 +13,63 @@ func checkAssetConstraint(emblem jwt.Token, constraints EmblemConstraints) bool 
 		return true
 	}
 
-	bearers, _ := emblem.Get("bearers")
-	for _, ai := range bearers.([]*ident.AI) {
-		match := false
-		for _, constraint := range constraints.Assets {
-			if constraint.MoreGeneral(ai) {
-				match = true
-				break
+	var bearers Bearers
+	if err := emblem.Get("bearers", &bearers); err != nil {
+		return false
+	} else {
+		for _, ai := range bearers {
+			match := false
+			for _, constraint := range constraints.Assets {
+				if constraint.MoreGeneral(ai) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				return false
 			}
 		}
-		if !match {
-			return false
-		}
+		return true
 	}
-	return true
 }
 
 var ErrAssetConstraint = errors.New("emblem does not satisfy asset constraint")
 var ErrPrpConstraint = errors.New("emblem does not satisfy prp constraint")
 var ErrDstConstraint = errors.New("emblem does not satisfy dst constraint")
 var ErrWndConstraint = errors.New("emblem does not satisfy wnd constraint")
+var ErrMissingExpNbf = errors.New("emblem misses nbf or exp")
 
 // Verify that the given emblem complies with the given endorsement's
 // constraints.
 func VerifyConstraints(emblem jwt.Token, endorsement jwt.Token) error {
-	if endCnstrs, ok := endorsement.Get("emb"); !ok {
-		return nil
-	} else if !checkAssetConstraint(emblem, endCnstrs.(EmblemConstraints)) {
+	var endCnstrs, embCnstrs EmblemConstraints
+	if err := endorsement.Get("emb", &endCnstrs); err != nil {
+		if errors.Is(err, jwt.ClaimNotFoundError()) {
+			return nil
+		} else {
+			return err
+		}
+	} else if !checkAssetConstraint(emblem, endCnstrs) {
 		return ErrAssetConstraint
-	} else if embCnstrs, ok := emblem.Get("emb"); !ok {
-		return nil
+	} else if err := emblem.Get("emb", &embCnstrs); err != nil {
+		return err // this claim must be present; any error should lead to failure
 	} else {
-		embPrp := embCnstrs.(EmblemConstraints).Purpose
-		endPrp := endCnstrs.(EmblemConstraints).Purpose
+		embPrp := embCnstrs.Purpose
+		endPrp := endCnstrs.Purpose
 		if endPrp != nil && *endPrp&*embPrp != *embPrp {
 			return ErrPrpConstraint
 		}
-		embDst := embCnstrs.(EmblemConstraints).Distribution
-		endDst := endCnstrs.(EmblemConstraints).Distribution
+		embDst := embCnstrs.Distribution
+		endDst := endCnstrs.Distribution
 		if endDst != nil && *endDst&*embDst != *embDst {
 			return ErrDstConstraint
 		}
-		wnd := endCnstrs.(EmblemConstraints).Window
-		if wnd != nil && emblem.Expiration().Unix()-emblem.NotBefore().Unix() > int64(*wnd) {
+		wnd := endCnstrs.Window
+		if exp, ok := emblem.Expiration(); !ok {
+			return ErrMissingExpNbf
+		} else if nbf, ok := emblem.NotBefore(); !ok {
+			return ErrMissingExpNbf
+		} else if wnd != nil && exp.Unix()-nbf.Unix() > int64(*wnd) {
 			return ErrWndConstraint
 		}
 	}

@@ -107,7 +107,6 @@ func main() {
 
 	trustedKeys := args.LoadTrustedKeys()
 	if trustedKeys.Len() > 0 {
-		var err error
 		if trustedKeys, err = tokens.SetKIDs(trustedKeys, args.LoadTrustedKeysAlg()); err != nil {
 			log.Fatalf("could not set trusted keys KIDs: %s", err)
 		}

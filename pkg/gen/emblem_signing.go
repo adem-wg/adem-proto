@@ -2,16 +2,16 @@ package gen
 
 import (
 	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 func (cfg *EmblemConfig) SignToken() (jwt.Token, []byte, error) {
 	return SignEmblem(cfg.sk, cfg.alg, cfg.proto, cfg.lifetime, cfg.setJwk)
 }
 
-func SignEmblem(secretKey jwk.Key, alg *jwa.SignatureAlgorithm, token jwt.Token, lifetime int64, setJwk bool) (jwt.Token, []byte, error) {
+func SignEmblem(secretKey jwk.Key, alg jwa.SignatureAlgorithm, token jwt.Token, lifetime int64, setJwk bool) (jwt.Token, []byte, error) {
 	if err := prepToken(token, lifetime); err != nil {
 		return nil, nil, err
 	}

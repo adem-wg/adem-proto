@@ -4,13 +4,10 @@ import (
 	"errors"
 	"os"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 var ErrEmptyPath = errors.New("no path provided")
-var ErrNoAlg = errors.New("no algorithm given")
-var ErrNoSuchAlg = errors.New("algorithm does not exist")
 
 func loadKeys(path string, isJWK bool) (jwk.Set, error) {
 	if path == "" {
@@ -22,16 +19,4 @@ func loadKeys(path string, isJWK bool) (jwk.Set, error) {
 	} else {
 		return key, nil
 	}
-}
-
-func loadAlgByString(alg string) (*jwa.SignatureAlgorithm, error) {
-	if alg == "" {
-		return nil, ErrNoAlg
-	}
-	for _, a := range jwa.SignatureAlgorithms() {
-		if a.String() == alg {
-			return &a, nil
-		}
-	}
-	return nil, ErrNoSuchAlg
 }

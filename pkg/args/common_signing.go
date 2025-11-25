@@ -4,9 +4,9 @@ import (
 	"flag"
 	"log"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var alg string
@@ -41,21 +41,21 @@ func AddPublicKeyArgs() {
 	flag.StringVar(&publicKeyAlg, "pk-alg", "", "public key alg (if omitted, will use -alg)")
 }
 
-func LoadAlg() *jwa.SignatureAlgorithm {
-	if a, err := loadAlgByString(alg); err != nil {
-		log.Fatalf("no algorithm found: %s", err)
-		return nil
+func LoadAlg() jwa.SignatureAlgorithm {
+	if a, ok := jwa.LookupSignatureAlgorithm(alg); !ok {
+		log.Fatalf(`"-alg %s" algorithm not found`, alg)
+		return jwa.NoSignature()
 	} else {
 		return a
 	}
 }
 
-func LoadPKAlg() *jwa.SignatureAlgorithm {
-	if alg, err := loadAlgByString(publicKeyAlg); err == ErrNoAlg {
+func LoadPKAlg() jwa.SignatureAlgorithm {
+	if publicKeyAlg == "" {
 		return LoadAlg()
-	} else if err != nil {
-		log.Fatalf("no algorithm found: %s", err)
-		return nil
+	} else if alg, ok := jwa.LookupSignatureAlgorithm(publicKeyAlg); !ok {
+		log.Fatalf(`"-pk-alg %s" algorithm not found`, publicKeyAlg)
+		return jwa.NoSignature()
 	} else {
 		return alg
 	}

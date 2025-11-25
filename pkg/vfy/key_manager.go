@@ -9,16 +9,18 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/roots"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var ErrNoKeyFound = errors.New("no key found")
 var ErrRootKeyUnbound = errors.New("root key not properly committed")
 var ErrAlgsDiffer = errors.New("jws alg and verification key alg are different")
+var ErrUnexpectedAlg = errors.New("could not find verification algorithm")
 var ErrLogsEmpty = errors.New("logs field cannot be empty")
+var ErrNoIss = errors.New("issuer claim missing")
 
 // A struct that implements the [jwt.KeyProvider] interface.
 type keyManager struct {
@@ -136,12 +138,14 @@ func (km *keyManager) get(kid string) util.Promise[jwk.Key] {
 }
 
 func (km *keyManager) getVerificationKey(sig *jws.Signature) util.Promise[jwk.Key] {
-	if headerKID := sig.ProtectedHeaders().KeyID(); headerKID != "" {
-		return km.get(headerKID)
-	} else if sig.ProtectedHeaders().JWK().KeyID() != "" {
-		return km.get(sig.ProtectedHeaders().JWK().KeyID())
-	} else {
+	if headerKid, ok := sig.ProtectedHeaders().KeyID(); ok {
+		return km.get(headerKid)
+	} else if headerKey, ok := sig.ProtectedHeaders().JWK(); !ok {
 		return util.Rejected[jwk.Key]()
+	} else if headerKeyKid, ok := headerKey.KeyID(); !ok {
+		return util.Rejected[jwk.Key]()
+	} else {
+		return km.get(headerKeyKid)
 	}
 }
 
@@ -152,28 +156,31 @@ func (km *keyManager) getVerificationKey(sig *jws.Signature) util.Promise[jwk.Ke
 func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.Signature, m *jws.Message) error {
 	var promise util.Promise[jwk.Key]
 	var err error
+	var logs tokens.Log
 	if t, e := jwt.Parse(m.Payload(), jwt.WithVerify(false)); e != nil {
 		log.Printf("could not decode payload: %s", e)
 		err = e
-	} else if logs, ok := t.Get("log"); ok {
-		_, hasHeaderKey := sig.ProtectedHeaders().Get("jwk")
-		_, hasHeaderKeyID := sig.ProtectedHeaders().Get("kid")
-		_, haveKey := km.keys[sig.ProtectedHeaders().KeyID()]
-		if len(logs.([]*tokens.LogConfig)) == 0 {
+	} else if logFetchErr := t.Get("log", &logs); logFetchErr == nil {
+		headerKey, hasHeaderKey := sig.ProtectedHeaders().JWK()
+		headerKid, hasHeaderKeyID := sig.ProtectedHeaders().KeyID()
+		headerKidKey, haveKey := km.keys[headerKid]
+		if len(logs) == 0 {
 			err = ErrLogsEmpty
 		} else if !hasHeaderKey && !(hasHeaderKeyID && haveKey) {
 			err = ErrNoKeyFound
+		} else if iss, ok := t.Issuer(); !ok {
+			err = ErrNoIss
 		} else {
-			var headerKey jwk.Key
+			var checkKey jwk.Key
 			if hasHeaderKey {
-				headerKey = sig.ProtectedHeaders().JWK()
+				checkKey = headerKey
 			} else {
 				// This is the only case where we access the key map without checking
 				// for keys to have been verified.
-				headerKey = km.keys[sig.ProtectedHeaders().KeyID()]
+				checkKey = headerKidKey
 			}
 
-			for _, r := range roots.VerifyBindingCerts(t.Issuer(), headerKey, logs.([]*tokens.LogConfig)) {
+			for _, r := range roots.VerifyBindingCerts(iss, checkKey, logs) {
 				if !r.Ok {
 					log.Printf("could not verify root key commitment for log ID %s", r.LogID)
 					err = ErrRootKeyUnbound
@@ -182,9 +189,11 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 			}
 
 			if err == nil {
-				km.put(headerKey)
+				km.put(checkKey)
 			}
 		}
+	} else if !errors.Is(logFetchErr, jwt.ClaimNotFoundError()) {
+		return logFetchErr
 	}
 
 	promise = km.getVerificationKey(sig)
@@ -199,10 +208,17 @@ func (km *keyManager) FetchKeys(ctx context.Context, sink jws.KeySink, sig *jws.
 		return ErrNoKeyFound
 	}
 
-	if verificationKey.Algorithm() != sig.ProtectedHeaders().Algorithm() {
+	if verifAlg, ok := verificationKey.Algorithm(); !ok {
 		return ErrAlgsDiffer
+	} else if sigAlg, ok := sig.ProtectedHeaders().Algorithm(); !ok {
+		return ErrAlgsDiffer
+	} else if verifAlg != sigAlg {
+		return ErrAlgsDiffer
+	} else if alg, ok := jwa.LookupSignatureAlgorithm(verifAlg.String()); !ok {
+		return ErrUnexpectedAlg
+	} else {
+		sink.Key(alg, verificationKey)
 	}
 
-	sink.Key(jwa.SignatureAlgorithm(verificationKey.Algorithm().String()), verificationKey)
 	return nil
 }

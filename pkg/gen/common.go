@@ -5,10 +5,10 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 type TokenGenerator interface {
@@ -19,24 +19,24 @@ type TokenGenerator interface {
 
 type EmblemConfig struct {
 	sk       jwk.Key
-	alg      *jwa.SignatureAlgorithm
+	alg      jwa.SignatureAlgorithm
 	proto    jwt.Token
 	lifetime int64
 	setJwk   bool
 }
 
-func MkEmblemCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64, setJwk bool) *EmblemConfig {
+func MkEmblemCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64, setJwk bool) *EmblemConfig {
 	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime, setJwk: setJwk}
 }
 
 type EndorsementConfig struct {
 	EmblemConfig
 	endorse    jwk.Key
-	endorseAlg *jwa.SignatureAlgorithm
+	endorseAlg jwa.SignatureAlgorithm
 	signKid    bool
 }
 
-func MkEndorsementCfg(sk jwk.Key, alg *jwa.SignatureAlgorithm, setJwk bool, proto jwt.Token, endorse jwk.Key, endorseAlg *jwa.SignatureAlgorithm, lifetime int64, signKid bool) *EndorsementConfig {
+func MkEndorsementCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, setJwk bool, proto jwt.Token, endorse jwk.Key, endorseAlg jwa.SignatureAlgorithm, lifetime int64, signKid bool) *EndorsementConfig {
 	return &EndorsementConfig{
 		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime, setJwk),
 		endorse:      endorse,
@@ -53,14 +53,14 @@ func prepToken(t jwt.Token, lifetime int64) error {
 
 	// Set nbf to iat if not already present
 	nbf := iat
-	if _, ok := t.Get("nbf"); ok {
-		nbf = t.NotBefore().Unix()
+	if nbf_, ok := t.NotBefore(); ok {
+		nbf = nbf_.Unix()
 	} else if err := t.Set("nbf", iat); err != nil {
 		return err
 	}
 
 	// Only set lifetime if not already present
-	if _, ok := t.Get("exp"); !ok {
+	if !t.Has("exp") {
 		if err := t.Set("exp", nbf+lifetime); err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func prepToken(t jwt.Token, lifetime int64) error {
 	return nil
 }
 
-func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, signingKey jwk.Key, setJwk bool) ([]byte, error) {
+func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key, setJwk bool) ([]byte, error) {
 	headers := jws.NewHeaders()
 	headers.Set("cty", string(cty))
 	verifKey, err := signingKey.PublicKey()
@@ -76,15 +76,13 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg *jwa.SignatureAlgorithm, s
 		return nil, err
 	} else if err := verifKey.Set("alg", alg.String()); err != nil {
 		return nil, err
-	} else if err := tokens.SetKID(verifKey, false); err != nil {
+	} else if kid, err := tokens.SetKID(verifKey, false); err != nil {
 		return nil, err
-	}
-
-	if setJwk {
+	} else if setJwk {
 		headers.Set("jwk", verifKey)
 	} else {
-		headers.Set("kid", verifKey.KeyID())
+		headers.Set("kid", kid)
 	}
 
-	return jwt.Sign(t, jwt.WithKey(*alg, signingKey, jws.WithProtectedHeaders(headers)))
+	return jwt.Sign(t, jwt.WithKey(alg, signingKey, jws.WithProtectedHeaders(headers)))
 }
