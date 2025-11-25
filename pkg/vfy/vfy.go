@@ -137,7 +137,9 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	keys := make([]jwk.Key, 0)
 	notKeys := make([][]byte, 0, len(rawTokens))
 	for _, t := range rawTokens {
-		if k, err := x509.ParsePKIXPublicKey(t); err != nil {
+		if b64, err := util.B64Dec(t); err != nil {
+			notKeys = append(notKeys, t)
+		} else if k, err := x509.ParsePKIXPublicKey(b64); err != nil {
 			notKeys = append(notKeys, t)
 		} else {
 			if jwkKey, err := jwk.FromRaw(k); err != nil {
