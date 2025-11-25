@@ -1,6 +1,6 @@
 {
   "ver": "v1",
-  "ass": ["example.com"],
+  "bearers": ["example.com"],
   "emb": {
     "prp": ["protective"],
     "dst": ["udp", "dns"]
