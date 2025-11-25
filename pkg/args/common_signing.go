@@ -12,7 +12,7 @@ import (
 var alg string
 var lifetime int64
 var skeyFile string
-var skeyPEM bool
+var skeyJWK bool
 var protoPath string
 var publicKeyPath string
 var publicKeyJWK bool
@@ -25,7 +25,7 @@ func AddSigningArgs() {
 	flag.StringVar(&alg, "alg", "", "signing algorithm")
 	flag.Int64Var(&lifetime, "lifetime", 172800, "emblem validity period; will be ignored if proto specifies exp")
 	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
-	flag.BoolVar(&skeyPEM, "skey-pem", true, "secret key is PEM")
+	flag.BoolVar(&skeyJWK, "skey-jwk", false, "is the signing key encoded as JWK? Default is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
 	flag.BoolVar(&setVerifyJWK, "set-jwk", false, "true to include verification key in header")
 	flag.BoolVar(&signKid, "sign-kid", false, "true to only sign a hash of the key")
@@ -66,7 +66,7 @@ func LoadLifetime() int64 {
 }
 
 func LoadPrivateKey() jwk.Key {
-	if ks, err := loadKeys(skeyFile, skeyPEM); err != nil {
+	if ks, err := loadKeys(skeyFile, skeyJWK); err != nil {
 		log.Fatalf("could not load skey: %s", err)
 		return nil
 	} else if k, ok := ks.Key(0); !ok {
