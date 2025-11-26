@@ -2,6 +2,8 @@ package tokens
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
@@ -15,6 +17,7 @@ import (
 
 var ErrNoEndorsedKey = errors.New("no endorsed key present")
 var ErrAlgMissing = errors.New("input key misses algorithm")
+var ErrUnsupportedKey = errors.New("unsupported key")
 
 // Get the KID of a key endorsed in an emblem.
 func GetEndorsedKID(t jwt.Token) (string, error) {
@@ -109,5 +112,23 @@ func EncodePublicKey(key jwk.Key) (string, error) {
 		return "", err
 	} else {
 		return base64.StdEncoding.EncodeToString(bs), nil
+	}
+}
+
+func SignatureAlgForKey(key any) (jwa.SignatureAlgorithm, error) {
+	switch typedKey := key.(type) {
+	case *ecdsa.PublicKey:
+		switch typedKey.Curve {
+		case elliptic.P256():
+			return jwa.ES256(), nil
+		case elliptic.P384():
+			return jwa.ES384(), nil
+		case elliptic.P521():
+			return jwa.ES512(), nil
+		default:
+			return jwa.NoSignature(), ErrUnsupportedKey
+		}
+	default:
+		return jwa.NoSignature(), ErrUnsupportedKey
 	}
 }

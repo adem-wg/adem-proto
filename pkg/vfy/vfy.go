@@ -141,8 +141,12 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		} else if k, err := x509.ParsePKIXPublicKey(b64); err != nil {
 			notKeys = append(notKeys, t)
 		} else {
-			if jwkKey, err := jwk.Import(k); err != nil {
+			if alg, err := tokens.SignatureAlgForKey(k); err != nil {
+				log.Printf("could not determine algorithm for key: %s\n", err)
+			} else if jwkKey, err := jwk.Import(k); err != nil {
 				log.Printf("could not create JWK from key: %s", err)
+			} else if err := jwkKey.Set("alg", alg); err != nil {
+				log.Printf("could not set key algorithm: %s\n", err)
 			} else if _, err := tokens.SetKID(jwkKey, true); err != nil {
 				log.Printf("could not set KID for key: %s", err)
 			} else {
