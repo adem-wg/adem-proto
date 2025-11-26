@@ -148,19 +148,23 @@ func (h *LeafHash) MarshalJSON() ([]byte, error) {
 
 // Wrapper type to parse "key" field as [jwk.Key].
 type EmbeddedKey struct {
-	Key jwk.Key
+	Key *jwk.Key
+	Kid string
 }
 
 // Attempt to parse a JSON value as string that contains a single JWK in JSON
 // encoding.
-func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) (err error) {
+func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) error {
 	trimmed := bytes.Trim(bs, `"`)
-	if k, e := jwk.ParseKey(trimmed); e != nil {
-		err = e
+	if k, err := jwk.ParseKey(trimmed); err != nil {
+		ek.Kid = string(trimmed)
+	} else if kid, err := SetKID(k, true); err != nil {
+		return err
 	} else {
-		ek.Key = k
+		ek.Key = &k
+		ek.Kid = kid
 	}
-	return
+	return nil
 }
 
 var ErrIllegalVersion = errors.New("illegal version")

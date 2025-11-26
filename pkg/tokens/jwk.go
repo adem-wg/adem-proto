@@ -16,20 +16,17 @@ import (
 var ErrNoEndorsedKey = errors.New("no endorsed key present")
 var ErrAlgMissing = errors.New("input key misses algorithm")
 
-// Get the KID of a key endorsed in an emblem. If the endorsed key has no KID,
-// it will be calculated.
+// Get the KID of a key endorsed in an emblem.
 func GetEndorsedKID(t jwt.Token) (string, error) {
-	var jwKey EmbeddedKey
-	if err := t.Get("key", &jwKey); err != nil {
+	var jwkKey EmbeddedKey
+	if err := t.Get("key", &jwkKey); err != nil {
 		if errors.Is(err, jwt.ClaimNotFoundError()) {
 			return "", ErrNoEndorsedKey
 		} else {
 			return "", err
 		}
-	} else if kid, err := GetKID(jwKey.Key); err != nil {
-		return "", err
 	} else {
-		return kid, nil
+		return jwkKey.Kid, nil
 	}
 }
 
