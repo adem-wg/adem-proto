@@ -83,6 +83,20 @@ func (km *keyManager) waiting() int {
 	return sum
 }
 
+func (km *keyManager) setVerified(kid string) bool {
+	km.lock.Lock()
+	defer km.lock.Unlock()
+
+	if _, ok := km.keys[kid]; !ok {
+		return false
+	} else if verified, ok := km.keysVerified[kid]; ok && verified {
+		return false
+	} else {
+		km.keysVerified[kid] = true
+		return km.resolve(kid)
+	}
+}
+
 // Store a verified key and notify listeners waiting for that key.
 func (km *keyManager) put(k jwk.Key) bool {
 	km.lock.Lock()
@@ -107,6 +121,13 @@ func (km *keyManager) put(k jwk.Key) bool {
 
 	km.keys[kid] = k
 	km.keysVerified[kid] = true
+	return km.resolve(kid)
+}
+
+// Resolve all promises associated with a key id. For internal use only. The
+// function assumes that (a) it is not called concurrently, (b) there is a key
+// for the kid, (c) the key has been verified.
+func (km *keyManager) resolve(kid string) bool {
 	promises := km.listeners[kid]
 	if len(promises) == 0 {
 		return false
@@ -114,7 +135,7 @@ func (km *keyManager) put(k jwk.Key) bool {
 
 	for _, promise := range promises {
 		if promise != nil {
-			promise.Fulfill(k)
+			promise.Fulfill(km.keys[kid])
 		}
 	}
 	delete(km.listeners, kid)

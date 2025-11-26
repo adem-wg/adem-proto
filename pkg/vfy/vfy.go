@@ -210,8 +210,12 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 					if !errors.Is(err, jwt.ClaimNotFoundError()) {
 						log.Printf("Could not access key claim: %s\n", err)
 					}
+				} else if k.Key == nil {
+					log.Printf("marking key as verified")
+					km.setVerified(k.Kid)
 				} else {
-					km.put(k.Key)
+					log.Printf("putting key for: %s\n", k.Kid)
+					km.put(*k.Key)
 				}
 			}
 		}
