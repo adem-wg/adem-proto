@@ -11,6 +11,6 @@ for f in "emblem" "auth.felixlinker.de" "emblem.felixlinker.de"; do
     openssl ec -in "keys/$f.pem" -pubout > "certs/$f.pub.pem"
   fi
   if [ ! -f "certs/$f.pub.json" ]; then
-    go run github.com/adem-wg/adem-proto/cmd/kid -pk "keys/$f.pem" -pk-alg ES512 > "certs/$f.pub.json"
+    go run github.com/adem-wg/adem-proto/cmd/kid -cmd gen-kid -pk "keys/$f.pem" -pk-alg ES512 > "certs/$f.pub.json"
   fi
 done
