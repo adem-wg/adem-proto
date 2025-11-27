@@ -7,15 +7,19 @@ import (
 	"log"
 	"strings"
 
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
+
+var ErrNoKeyFound = errors.New("no key found")
+var ErrNoAlgFound = errors.New("no alg found")
+var ErrCty = errors.New("no or illegal content type")
+var ErrRootKeyUnbound = errors.New("root key not properly committed")
+var ErrLogsEmpty = errors.New("logs field cannot be empty")
+var ErrNoIss = errors.New("issuer claim missing")
+var ErrTokenNonCompact = errors.New("token is not in compact serialization")
 
 type VerificationResults struct {
 	results    []VerificationResult
@@ -85,41 +89,6 @@ const SIGNED_TRUSTED VerificationResult = 5
 const ORGANIZATIONAL_TRUSTED VerificationResult = 6
 const ENDORSED_TRUSTED VerificationResult = 7
 
-var ErrTokenNonCompact = errors.New("token is not in compact serialization")
-
-type TokenVerificationResult struct {
-	token *ADEMToken
-	err   error
-}
-
-// Verify an ADEM token's signature. Designed to be called asynchronously.
-// Results will be returned to the [results] channel. Verification keys will be
-// obtained from [km].
-// Every call to [vfyToken] will write to [results] exactly once.
-func vfyToken(rawToken []byte, km *keyManager, results chan *TokenVerificationResult) {
-	result := TokenVerificationResult{}
-	defer func() { results <- &result }()
-
-	jwtT, err := jwt.Parse(rawToken, jwt.WithKeyProvider(km))
-	if err != nil {
-		result.err = err
-		return
-	}
-
-	if msg, err := jws.Parse(rawToken); err != nil {
-		result.err = err
-		return
-	} else if len(msg.Signatures()) > 1 {
-		result.err = ErrTokenNonCompact
-		return
-	} else if ademT, err := MkADEMToken(km, msg.Signatures()[0], jwtT); err != nil {
-		result.err = err
-		return
-	} else {
-		result.token = ademT
-	}
-}
-
 // Verify a slice of ADEM tokens.
 func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 
@@ -155,111 +124,38 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		}
 	}
 
-	// We maintain a thread count for termination purposes. It might be that we
-	// cannot verify all token's verification key and must cancel verification.
-	threadCount := len(notKeys)
-	km := NewKeyManager(keys, len(notKeys))
+	th := NewTokenSet(keys)
 	// Put trusted public keys into key manager. This allows for termination for
 	// tokens without issuer.
 	for i := range trustedKeys.Len() {
 		if k, ok := trustedKeys.Key(i); !ok {
 			panic("index out of bounds")
 		} else {
-			km.put(k)
+			th.put(k)
 		}
 	}
-	results := make(chan *TokenVerificationResult)
-	// Start verification threads
+
+	// Start verification
 	for _, rawToken := range notKeys {
-		go vfyToken(rawToken, km, results)
-	}
-
-	// Wait until all verification threads obtained a verification key promise.
-	km.waitForInit()
-
-	ts := []*ADEMToken{}
-	for {
-		// [waiting] is the number of unresolved promises in the key manager, i.e.,
-		// blocked threads that wait for a verification key.
-		// [threadCount] is the number of threads that could still provide
-		// a new verification key in the [results] channel.
-		// If there are as many waiting threads as threads that could result in a
-		// new verification, we miss verification keys and verification will be
-		// aborted.
-		if waiting := km.waiting(); waiting > 0 && waiting == threadCount {
-			km.killListeners()
-		} else if result := <-results; result == nil {
-			// All threads have terminated
-			break
-		} else {
-			// We got a new non-nil result from <-results, and hence, one thread must
-			// have terminated. Decrement the counter accordingly.
-			threadCount -= 1
-			// Every call to [vfyToken] will write exactly one result. Hence, only
-			// close the [results] channel, when all threads have terminated.
-			if threadCount == 0 {
-				close(results)
-			}
-
-			if result.err != nil {
-				log.Printf("discarding invalid token: %s", result.err)
-			} else {
-				ts = append(ts, result.token)
-				var k tokens.EmbeddedKey
-				if err := result.token.Token.Get("key", &k); err != nil {
-					if !errors.Is(err, jwt.ClaimNotFoundError()) {
-						log.Printf("Could not access key claim: %s\n", err)
-					}
-				} else if k.Key == nil {
-					log.Printf("marking key as verified")
-					km.setVerified(k.Kid)
-				} else {
-					log.Printf("putting key for: %s\n", k.Kid)
-					km.put(*k.Key)
-				}
-			}
+		if err := th.AddToken(rawToken); err != nil {
+			log.Printf("could not verify token: %s\n", err)
 		}
 	}
+
+	th.logErrors()
 
 	var emblem *ADEMToken
 	var protected tokens.Bearers
-	endorsements := []*ADEMToken{}
-	for _, t := range ts {
-		cty, ok := t.Headers.ContentType()
-		if ok && cty == string(consts.EmblemCty) {
-			if emblem != nil {
-				// Multiple emblems
-				log.Print("Token set contains multiple emblems")
-				return ResultInvalid()
-			} else if err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EmblemValidator)); err != nil {
-				log.Printf("Invalid emblem: %s", err)
-				return ResultInvalid()
-			} else {
-				emblem = t
-			}
-
-			if err := emblem.Token.Get("bearers", &protected); err != nil {
-				if errors.Is(err, jwt.ClaimNotFoundError()) {
-					log.Printf("No bearers claim")
-				} else {
-					log.Printf("Could not access bearers claim: %s", err)
-				}
-				return ResultInvalid()
-			} else if alg, ok := emblem.Headers.Algorithm(); !ok || alg == jwa.NoSignature() {
-				return VerificationResults{
-					results:   []VerificationResult{UNSIGNED},
-					protected: protected,
-				}
-			}
-		} else if ok && cty == string(consts.EndorsementCty) {
-			err := jwt.Validate(t.Token, jwt.WithValidator(tokens.EndorsementValidator))
-			if err != nil {
-				log.Printf("Invalid endorsement: %s", err)
-			} else {
-				endorsements = append(endorsements, t)
-			}
+	endorsements := []ADEMToken{}
+	for _, t := range th.results {
+		if t.IsEndorsement {
+			endorsements = append(endorsements, t)
+		} else if emblem == nil {
+			emblem = &t
 		} else {
-			log.Printf("Token has wrong type: %s", cty)
+			// Multiple emblems
+			log.Print("Token set contains multiple emblems")
+			return ResultInvalid()
 		}
 	}
 
@@ -268,7 +164,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		return ResultInvalid()
 	}
 
-	vfyResults, root := verifySignedOrganizational(emblem, endorsements, trustedKeys)
+	vfyResults, root := verifySignedOrganizational(*emblem, endorsements, trustedKeys)
 	if util.Contains(vfyResults, INVALID) {
 		return ResultInvalid()
 	}
@@ -277,7 +173,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	var endorsedBy []string
 
 	if util.Contains(vfyResults, ORGANIZATIONAL) {
-		endorsedResults, endorsedBy = verifyEndorsed(emblem, root, endorsements, trustedKeys)
+		endorsedResults, endorsedBy = verifyEndorsed(*emblem, *root, endorsements, trustedKeys)
 	}
 
 	if util.Contains(endorsedResults, INVALID) {

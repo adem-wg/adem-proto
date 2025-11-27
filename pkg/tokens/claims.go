@@ -169,7 +169,7 @@ func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) error {
 
 var ErrIllegalVersion = errors.New("illegal version")
 var ErrIllegalType = errors.New("illegal claim type")
-var ErrAssMissing = errors.New("emblems require bearers claim")
+var ErrBearers = errors.New("emblems require non-empty bearers claim")
 var ErrLogClaim = errors.New("emblems must not contain a log claim")
 var ErrEndMissing = errors.New("endorsements require end claim")
 
@@ -179,8 +179,11 @@ var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) err
 		return err
 	}
 
-	if !t.Has("bearers") {
-		return ErrAssMissing
+	var bearers Bearers
+	if err := t.Get("bearers", &bearers); err != nil {
+		return ErrBearers
+	} else if len(bearers) == 0 {
+		return ErrBearers
 	}
 
 	if t.Has("log") {

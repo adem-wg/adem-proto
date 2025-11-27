@@ -9,14 +9,10 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
-func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, []string) {
+func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, []string) {
 	rootIss, rootHasIss := root.Token.Issuer()
-	rootKid, rootHasKid := root.VerificationKey.KeyID()
 	if !rootHasIss {
 		log.Printf("root endorsements misses issuer\n")
-		return []VerificationResult{INVALID}, nil
-	} else if !rootHasKid {
-		log.Printf("root endorsements misses verification kid\n")
 		return []VerificationResult{INVALID}, nil
 	}
 
@@ -47,7 +43,7 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 				log.Printf("could not access log claim: %s\n", err)
 			}
 			continue
-		} else if rootKid != endorsedKID {
+		} else if root.VerificationKid != endorsedKID {
 			continue
 		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
 			log.Printf("emblem does not comply with endorsement constraints: %s", err)
@@ -55,10 +51,8 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 		} else {
 			existsEndorsement = true
 			issuers = append(issuers, endIss)
-			if endKid, ok := endorsement.VerificationKey.KeyID(); ok {
-				_, found := trustedKeys.LookupKeyID(endKid)
-				trustedFound = trustedFound || found
-			}
+			_, found := trustedKeys.LookupKeyID(endorsement.VerificationKid)
+			trustedFound = trustedFound || found
 		}
 	}
 
