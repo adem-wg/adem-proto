@@ -19,6 +19,7 @@ var trustedKeyJWK bool
 var trustedKeyAlg string
 var tokensFilePath string
 var AssetDomainName string
+var tokenKeySetPath string
 
 func AddCTArgs() {
 	flag.BoolVar(&CTProviderGoogle, "google", true, "trust CT logs known to Google")
@@ -35,6 +36,7 @@ func AddVerificationArgs() {
 func AddVerificationLocalArgs() {
 	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
 	flag.StringVar(&AssetDomainName, "asset", "", "domain to check for tokens")
+	flag.StringVar(&tokenKeySetPath, "jwks", "", "file that contains a JWK set with untrusted verification keys")
 }
 
 var ErrNoLogProvider = errors.New("no log providers")
@@ -95,5 +97,16 @@ func LoadTokensFile() *os.File {
 		return nil
 	} else {
 		return f
+	}
+}
+
+func LoadTokenKeySet() jwk.Set {
+	if tokenKeySetPath == "" {
+		return jwk.NewSet()
+	} else if ks, err := loadKeys(tokenKeySetPath, true); err != nil {
+		log.Fatalf("could not load JWK set: %s", err)
+		return nil
+	} else {
+		return ks
 	}
 }

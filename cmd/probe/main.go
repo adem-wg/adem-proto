@@ -13,6 +13,7 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/io"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/vfy"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 func init() {
@@ -39,7 +40,7 @@ func main() {
 		if set == nil {
 			break
 		} else {
-			vfy.VerifyTokens(set, trustedKeys).Print()
+			vfy.VerifyTokens(set, trustedKeys, jwk.NewSet()).Print()
 		}
 	}
 }

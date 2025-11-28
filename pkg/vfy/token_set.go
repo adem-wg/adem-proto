@@ -23,14 +23,21 @@ type TokenSet struct {
 	errors       []error
 }
 
-// Creates a new key manager to verify [numThreads]-many tokens asynchronously.
-func NewTokenSet(untrustedKeys []jwk.Key) TokenSet {
+func NewTokenSet(untrustedKeys jwk.Set) TokenSet {
 	var th TokenSet
-	th.keys = make(map[string]jwk.Key)
-	for _, k := range untrustedKeys {
-		if kid, err := tokens.GetKID(k); err == nil {
-			th.keys[kid] = k
+	if untrustedKeys != nil {
+		th.keys = make(map[string]jwk.Key, untrustedKeys.Len())
+		for i := 0; i < untrustedKeys.Len(); i++ {
+			k, ok := untrustedKeys.Key(i)
+			if !ok {
+				panic("index out of bounds")
+			}
+			if kid, err := tokens.GetKID(k); err == nil {
+				th.keys[kid] = k
+			}
 		}
+	} else {
+		th.keys = make(map[string]jwk.Key)
 	}
 
 	th.verified = make(map[string]bool)

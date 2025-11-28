@@ -1,7 +1,6 @@
 package vfy
 
 import (
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
@@ -90,7 +89,7 @@ const ORGANIZATIONAL_TRUSTED VerificationResult = 6
 const ENDORSED_TRUSTED VerificationResult = 7
 
 // Verify a slice of ADEM tokens.
-func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
+func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set, untrustedKeys jwk.Set) VerificationResults {
 
 	// Early termination for empty rawTokens slice
 	if len(rawTokens) == 0 {
@@ -102,29 +101,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		trustedKeys = jwk.NewSet()
 	}
 
-	keys := make([]jwk.Key, 0)
-	notKeys := make([][]byte, 0, len(rawTokens))
-	for _, t := range rawTokens {
-		if b64, err := util.B64Dec(t); err != nil {
-			notKeys = append(notKeys, t)
-		} else if k, err := x509.ParsePKIXPublicKey(b64); err != nil {
-			notKeys = append(notKeys, t)
-		} else {
-			if alg, err := tokens.SignatureAlgForKey(k); err != nil {
-				log.Printf("could not determine algorithm for key: %s\n", err)
-			} else if jwkKey, err := jwk.Import(k); err != nil {
-				log.Printf("could not create JWK from key: %s", err)
-			} else if err := jwkKey.Set("alg", alg); err != nil {
-				log.Printf("could not set key algorithm: %s\n", err)
-			} else if _, err := tokens.SetKID(jwkKey, true); err != nil {
-				log.Printf("could not set KID for key: %s", err)
-			} else {
-				keys = append(keys, jwkKey)
-			}
-		}
-	}
-
-	th := NewTokenSet(keys)
+	th := NewTokenSet(untrustedKeys)
 	// Put trusted public keys into key manager. This allows for termination for
 	// tokens without issuer.
 	for i := range trustedKeys.Len() {
@@ -136,7 +113,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 
 	// Start verification
-	for _, rawToken := range notKeys {
+	for _, rawToken := range rawTokens {
 		if err := th.AddToken(rawToken); err != nil {
 			log.Printf("could not verify token: %s\n", err)
 		}
