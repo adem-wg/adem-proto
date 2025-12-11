@@ -220,7 +220,7 @@ func validateOI(oi string) error {
 	if err != nil {
 		return errors.New("could not parse OI")
 	}
-	if url.Scheme != "https" || url.Host == "" || url.Opaque != "" || url.User != nil || url.RawPath != "" || url.RawQuery != "" || url.RawFragment != "" {
+	if url.Scheme != "https" || url.Host == "" || url.Opaque != "" || url.User != nil || url.Path != "" || url.RawQuery != "" || url.RawFragment != "" {
 		return errors.New("illegal OI")
 	}
 	return nil
