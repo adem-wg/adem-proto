@@ -3,26 +3,22 @@ package args
 import (
 	"flag"
 	"log"
-	"net"
 )
 
-var probeAddrStr string
-var ProbeTimeout int64
-var ProbePort int
+var probeDNS bool
 
 func AddProbeArgs() {
-	flag.StringVar(&probeAddrStr, "probe", "", "which address to probe?")
-	flag.Int64Var(&ProbeTimeout, "timeout", 10, "how many seconds to wait for UDP packets?")
-	flag.IntVar(&ProbePort, "port", 60, "UDP port for listening")
+	flag.BoolVar(&probeDNS, "dns", true, "probe DNS TXT records for tokens and keys")
 }
 
-func LoadProbeAddr() *net.UDPAddr {
-	if probeAddrStr == "" {
-		log.Fatal("no probe address given")
+func LoadProbeTarget() string {
+	args := flag.Args()
+	if len(args) == 0 {
+		log.Fatal("no probe target given (expected positional argument)")
+	} else if len(args) > 1 {
+		log.Fatalf("too many positional arguments (expected 1 target, got %d)", len(args))
 	}
-	addr, err := net.ResolveUDPAddr("udp", probeAddrStr)
-	if err != nil {
-		log.Fatalf("could not parse probe address: %s", err)
-	}
-	return addr
+	return args[0]
 }
+
+func ProbeDNS() bool { return probeDNS }

@@ -18,7 +18,6 @@ var trustedKeyPath string
 var trustedKeyJWK bool
 var trustedKeyAlg string
 var tokensFilePath string
-var AssetDomainName string
 var tokenKeySetPath string
 
 func AddCTArgs() {
@@ -35,7 +34,6 @@ func AddVerificationArgs() {
 
 func AddVerificationLocalArgs() {
 	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
-	flag.StringVar(&AssetDomainName, "asset", "", "domain to check for tokens")
 	flag.StringVar(&tokenKeySetPath, "jwks", "", "file that contains a JWK set with untrusted verification keys")
 }
 
