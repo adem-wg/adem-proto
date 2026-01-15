@@ -22,26 +22,23 @@ type EmblemConfig struct {
 	alg      jwa.SignatureAlgorithm
 	proto    jwt.Token
 	lifetime int64
-	setJwk   bool
 }
 
-func MkEmblemCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64, setJwk bool) *EmblemConfig {
-	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime, setJwk: setJwk}
+func MkEmblemCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64) *EmblemConfig {
+	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime}
 }
 
 type EndorsementConfig struct {
 	EmblemConfig
 	endorse    jwk.Key
 	endorseAlg jwa.SignatureAlgorithm
-	signKid    bool
 }
 
-func MkEndorsementCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, setJwk bool, proto jwt.Token, endorse jwk.Key, endorseAlg jwa.SignatureAlgorithm, lifetime int64, signKid bool) *EndorsementConfig {
+func MkEndorsementCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, endorse jwk.Key, endorseAlg jwa.SignatureAlgorithm, lifetime int64) *EndorsementConfig {
 	return &EndorsementConfig{
-		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime, setJwk),
+		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime),
 		endorse:      endorse,
 		endorseAlg:   endorseAlg,
-		signKid:      signKid,
 	}
 }
 
@@ -68,7 +65,7 @@ func prepToken(t jwt.Token, lifetime int64) error {
 	return nil
 }
 
-func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key, setJwk bool) ([]byte, error) {
+func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key) ([]byte, error) {
 	headers := jws.NewHeaders()
 	headers.Set("cty", string(cty))
 	verifKey, err := signingKey.PublicKey()
@@ -76,12 +73,10 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, si
 		return nil, err
 	} else if err := verifKey.Set("alg", alg.String()); err != nil {
 		return nil, err
-	} else if kid, err := tokens.SetKID(verifKey, false); err != nil {
+	} else if _, err := tokens.SetKID(verifKey, true); err != nil {
 		return nil, err
-	} else if setJwk {
-		headers.Set("jwk", verifKey)
 	} else {
-		headers.Set("kid", kid)
+		headers.Set("jwk", verifKey)
 	}
 
 	return jwt.Sign(t, jwt.WithKey(alg, signingKey, jws.WithProtectedHeaders(headers)))

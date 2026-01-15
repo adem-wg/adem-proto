@@ -75,7 +75,6 @@ func main() {
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
 			args.LoadLifetime(),
-			args.LoadSetVerifyJwk(),
 		), args.SafetyWindow),
 		endorsements,
 		args.EmblemPort,

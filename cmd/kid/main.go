@@ -18,7 +18,6 @@ import (
 )
 
 func init() {
-	args.AddKeyArgs()
 	args.AddPublicKeyArgs()
 }
 
@@ -36,15 +35,7 @@ func main() {
 		log.Fatalf("could not hash key: %s", err)
 	} else if bs, err := json.MarshalIndent(pk, "", "  "); err != nil {
 		log.Fatalf("could not marshall JSON: %s", err)
-	} else if args.LoadKeysCommand() == "gen-kid" {
-		fmt.Printf("%s\n", string(bs))
-	} else if args.LoadKeysCommand() == "encode" {
-		if b64, err := tokens.EncodePublicKey(pk); err != nil {
-			log.Fatalf("could not encode key: %s", err)
-		} else {
-			fmt.Printf("%s\n", b64)
-		}
 	} else {
-		flag.PrintDefaults()
+		fmt.Printf("%s\n", string(bs))
 	}
 }

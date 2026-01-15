@@ -28,7 +28,6 @@ func main() {
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
 			args.LoadLifetime(),
-			args.LoadSetVerifyJwk(),
 		)
 	} else {
 		proto := args.LoadClaimsProto()
@@ -41,12 +40,10 @@ func main() {
 		_, signedToken, err = gen.SignEndorsement(
 			args.LoadPrivateKey(),
 			args.LoadAlg(),
-			args.LoadSetVerifyJwk(),
 			proto,
 			endorseKey,
 			args.LoadPKAlg(),
 			args.LoadLifetime(),
-			args.LoadSignKid(),
 		)
 	}
 
