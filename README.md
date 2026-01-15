@@ -5,9 +5,8 @@ The prototypes are not fully specification compliant yet and will continue to ev
 
 ## Prerequisites
 
-All prototypes are written in the [Go programming language](https://go.dev/).
-To use them, you need to install go version 1.19 or higher.
-After you have done so, you can clone this repository such that it is available on `$GOPATH`.
+All prototypes are written in the [Go programming language](https://go.dev/), version 1.24.0.
+Clone this repository such that it is available on `$GOPATH`.
 
 ## Usage
 
