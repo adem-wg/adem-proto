@@ -1,9 +1,12 @@
 package args
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
+	"os"
 
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -14,6 +17,7 @@ var lifetime int64
 var skeyFile string
 var skeyJWK bool
 var protoPath string
+var logsPath string
 var publicKeyPath string
 var publicKeyJWK bool
 var publicKeyAlg string
@@ -27,6 +31,7 @@ func AddSigningArgs() {
 	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
 	flag.BoolVar(&skeyJWK, "skey-jwk", false, "is the signing key encoded as JWK? Default is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
+	flag.StringVar(&logsPath, "logs", "", "path to key commitment information")
 	flag.BoolVar(&setVerifyJWK, "set-jwk", false, "true to include verification key in header")
 	flag.BoolVar(&signKid, "sign-kid", false, "true to only sign a hash of the key")
 }
@@ -87,6 +92,21 @@ func LoadClaimsProto() jwt.Token {
 		log.Fatalf("cannot parse proto file: %s", err)
 	}
 	return claimsProto
+}
+
+func LoadLogs() tokens.Log {
+	var logs tokens.Log
+	if logsPath == "" {
+		return nil
+	} else if bs, err := os.ReadFile(logsPath); err != nil {
+		log.Fatalf("could not read logs file: %s", err)
+		return nil
+	} else if err := json.Unmarshal(bs, &logs); err != nil {
+		log.Fatalf("could not decode logs JSON: %s", err)
+		return nil
+	} else {
+		return logs
+	}
 }
 
 func LoadPublicKey() jwk.Key {

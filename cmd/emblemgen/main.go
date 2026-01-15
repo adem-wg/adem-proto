@@ -31,11 +31,18 @@ func main() {
 			args.LoadSetVerifyJwk(),
 		)
 	} else {
+		proto := args.LoadClaimsProto()
+		logs := args.LoadLogs()
+		if logs != nil {
+			if err := proto.Set("log", logs); err != nil {
+				log.Fatalf("could not set log in proto: %s", err)
+			}
+		}
 		_, signedToken, err = gen.SignEndorsement(
 			args.LoadPrivateKey(),
 			args.LoadAlg(),
 			args.LoadSetVerifyJwk(),
-			args.LoadClaimsProto(),
+			proto,
 			endorseKey,
 			args.LoadPKAlg(),
 			args.LoadLifetime(),
