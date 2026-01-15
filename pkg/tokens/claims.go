@@ -14,13 +14,13 @@ import (
 )
 
 type Log = []*LogConfig
-type Bearers = []*ident.AI
+type Assets = []*ident.AI
 
 // Register JWT fields of emblems for easier parsing.
 func init() {
 	jwt.RegisterCustomField("log", Log{})
 	jwt.RegisterCustomField("key", "")
-	jwt.RegisterCustomField("bearers", Bearers{})
+	jwt.RegisterCustomField("assets", Assets{})
 	jwt.RegisterCustomField("emb", EmblemConstraints{})
 	jwt.RegisterCustomField("ver", "")
 }
@@ -110,7 +110,7 @@ func (cm *ChannelMask) MarshalJSON() ([]byte, error) {
 type EmblemConstraints struct {
 	Purpose      *PurposeMask `json:"prp,omitempty"`
 	Distribution *ChannelMask `json:"dst,omitempty"`
-	Assets       []*ident.AI  `json:"bearers,omitempty"`
+	Assets       []*ident.AI  `json:"assets,omitempty"`
 	Window       *int         `json:"wnd,omitempty"`
 }
 
@@ -147,7 +147,7 @@ func (h *LeafHash) MarshalJSON() ([]byte, error) {
 
 var ErrIllegalVersion = errors.New("illegal version")
 var ErrIllegalType = errors.New("illegal claim type")
-var ErrBearers = errors.New("emblems require non-empty bearers claim")
+var ErrAssets = errors.New("emblems require non-empty assets claim")
 var ErrLogClaim = errors.New("emblems must not contain a log claim")
 var ErrEndMissing = errors.New("endorsements require end claim")
 
@@ -157,11 +157,11 @@ var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) err
 		return err
 	}
 
-	var bearers Bearers
-	if err := t.Get("bearers", &bearers); err != nil {
-		return ErrBearers
-	} else if len(bearers) == 0 {
-		return ErrBearers
+	var assets Assets
+	if err := t.Get("assets", &assets); err != nil {
+		return ErrAssets
+	} else if len(assets) == 0 {
+		return ErrAssets
 	}
 
 	if t.Has("log") {

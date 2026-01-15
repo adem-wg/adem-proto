@@ -122,7 +122,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set, untrustedKeys jwk.Set
 	th.logErrors()
 
 	var emblem *ADEMToken
-	var protected tokens.Bearers
+	var protected tokens.Assets
 	endorsements := []ADEMToken{}
 	for _, t := range th.results {
 		if t.IsEndorsement {

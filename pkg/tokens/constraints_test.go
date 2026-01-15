@@ -18,13 +18,13 @@ func parseAI(t *testing.T, raw string) *ident.AI {
 	}
 }
 
-func mkEmblemToken(t *testing.T, emb EmblemConstraints, bearers []*ident.AI, nbf, exp time.Time) jwt.Token {
+func mkEmblemToken(t *testing.T, emb EmblemConstraints, assets []*ident.AI, nbf, exp time.Time) jwt.Token {
 	t.Helper()
 	tok := jwt.New()
 	if err := tok.Set("emb", emb); err != nil {
 		t.Fatalf("set emb: %v", err)
-	} else if err := tok.Set("bearers", bearers); err != nil {
-		t.Fatalf("set bearers: %v", err)
+	} else if err := tok.Set("assets", assets); err != nil {
+		t.Fatalf("set assets: %v", err)
 	} else if err := tok.Set(jwt.NotBeforeKey, nbf); err != nil {
 		t.Fatalf("set nbf: %v", err)
 	} else if err := tok.Set(jwt.ExpirationKey, exp); err != nil {
@@ -59,8 +59,8 @@ func TestVerifyConstraintsAssetMismatch(t *testing.T) {
 	}
 	endorsement := mkEndorsementToken(t, &constraints)
 	emblem := jwt.New()
-	if err := emblem.Set("bearers", []*ident.AI{parseAI(t, "other.com")}); err != nil {
-		t.Fatalf("set bearers: %v", err)
+	if err := emblem.Set("assets", []*ident.AI{parseAI(t, "other.com")}); err != nil {
+		t.Fatalf("set assets: %v", err)
 	} else if err := VerifyConstraints(emblem, endorsement); err != ErrAssetConstraint {
 		t.Fatalf("expected ErrAssetConstraint, got %v", err)
 	}
