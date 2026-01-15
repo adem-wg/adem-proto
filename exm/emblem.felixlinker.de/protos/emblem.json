@@ -1,13 +1,10 @@
 {
-  "bearers": [
+  "assets": [
     "[2a01:4f9:c010:d8e4::1]"
   ],
   "emb": {
     "prp": [
       "protective"
-    ],
-    "dst": [
-      "dns"
     ]
   },
   "iss": "https://emblem.felixlinker.de",
