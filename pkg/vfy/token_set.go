@@ -74,6 +74,7 @@ func (th *TokenSet) AddToken(rawToken []byte) error {
 func (th *TokenSet) Verify(trustedKeys jwk.Set) ([]ADEMToken, []error) {
 	for _, r := range th.roots {
 		if kid, err := tokens.GetEndorsedKID(r.Token); err == nil {
+			th.results = append(th.results, r)
 			th.setVerified(kid)
 		} else {
 			th.errors = append(th.errors, err)
