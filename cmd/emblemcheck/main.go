@@ -53,7 +53,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	keys := args.LoadTokenKeySet()
 
 	trustedKeys := args.LoadTrustedKeys()
 	if trustedKeys.Len() > 0 {
@@ -62,5 +61,5 @@ func main() {
 		}
 	}
 
-	vfy.VerifyTokens(ts, trustedKeys, keys).Print()
+	vfy.VerifyTokens(ts, trustedKeys).Print()
 }

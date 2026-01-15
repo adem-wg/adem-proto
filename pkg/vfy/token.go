@@ -14,9 +14,9 @@ type ADEMToken struct {
 	Token           jwt.Token
 }
 
-func VerifierFor(token []byte) TokenVerifier {
+func VerifierFor(token []byte, key jwk.Key) TokenVerifier {
 	return TokenVerifier{
-		Verify: func(key jwk.Key) (*ADEMToken, error) {
+		Verify: func() (*ADEMToken, error) {
 			if alg, ok := key.Algorithm(); !ok {
 				return nil, ErrNoAlgFound
 			} else if kid, err := tokens.GetKID(key); err != nil {

@@ -89,7 +89,7 @@ const ORGANIZATIONAL_TRUSTED VerificationResult = 6
 const ENDORSED_TRUSTED VerificationResult = 7
 
 // Verify a slice of ADEM tokens.
-func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set, untrustedKeys jwk.Set) VerificationResults {
+func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 
 	// Early termination for empty rawTokens slice
 	if len(rawTokens) == 0 {
@@ -101,30 +101,26 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set, untrustedKeys jwk.Set
 		trustedKeys = jwk.NewSet()
 	}
 
-	th := NewTokenSet(untrustedKeys)
-	// Put trusted public keys into key manager. This allows for termination for
-	// tokens without issuer.
-	for i := range trustedKeys.Len() {
-		if k, ok := trustedKeys.Key(i); !ok {
-			panic("index out of bounds")
-		} else {
-			th.put(k)
-		}
-	}
-
-	// Start verification
+	th := NewTokenSet()
 	for _, rawToken := range rawTokens {
 		if err := th.AddToken(rawToken); err != nil {
 			log.Printf("could not verify token: %s\n", err)
 		}
 	}
 
-	th.logErrors()
+	verifiedTokens, errs := th.Verify(trustedKeys)
+
+	if len(errs) > 0 {
+		log.Printf("encountered the following errors during token verification...")
+		for _, err := range errs {
+			log.Print(err)
+		}
+	}
 
 	var emblem *ADEMToken
 	var protected tokens.Assets
 	endorsements := []ADEMToken{}
-	for _, t := range th.results {
+	for _, t := range verifiedTokens {
 		if t.IsEndorsement {
 			endorsements = append(endorsements, t)
 		} else if emblem == nil {
