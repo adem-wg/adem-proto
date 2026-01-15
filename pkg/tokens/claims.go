@@ -10,7 +10,6 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
@@ -20,7 +19,7 @@ type Bearers = []*ident.AI
 // Register JWT fields of emblems for easier parsing.
 func init() {
 	jwt.RegisterCustomField("log", Log{})
-	jwt.RegisterCustomField("key", EmbeddedKey{})
+	jwt.RegisterCustomField("key", "")
 	jwt.RegisterCustomField("bearers", Bearers{})
 	jwt.RegisterCustomField("emb", EmblemConstraints{})
 	jwt.RegisterCustomField("ver", "")
@@ -144,27 +143,6 @@ func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
 
 func (h *LeafHash) MarshalJSON() ([]byte, error) {
 	return json.Marshal(h.B64)
-}
-
-// Wrapper type to parse "key" field as [jwk.Key].
-type EmbeddedKey struct {
-	Key *jwk.Key
-	Kid string
-}
-
-// Attempt to parse a JSON value as string that contains a single JWK in JSON
-// encoding.
-func (ek *EmbeddedKey) UnmarshalJSON(bs []byte) error {
-	trimmed := bytes.Trim(bs, `"`)
-	if k, err := jwk.ParseKey(trimmed); err != nil {
-		ek.Kid = string(trimmed)
-	} else if kid, err := SetKID(k, true); err != nil {
-		return err
-	} else {
-		ek.Key = &k
-		ek.Kid = kid
-	}
-	return nil
 }
 
 var ErrIllegalVersion = errors.New("illegal version")

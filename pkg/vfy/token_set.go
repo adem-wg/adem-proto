@@ -115,16 +115,11 @@ func (th *TokenSet) runVerifier(tv TokenVerifier, key jwk.Key) {
 	if t, err := tv.Verify(key); err != nil {
 		th.errors = append(th.errors, err)
 	} else {
-		var endorsedKey tokens.EmbeddedKey
-		if err := t.Token.Get("key", &endorsedKey); err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
+		if endorsedKid, err := tokens.GetEndorsedKID(t.Token); err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
 			th.errors = append(th.errors, err)
 			return
 		} else if err == nil {
-			if endorsedKey.Key != nil {
-				th.put(*endorsedKey.Key)
-			} else {
-				th.setVerified(endorsedKey.Kid)
-			}
+			th.setVerified(endorsedKid)
 		}
 		th.results = append(th.results, *t)
 	}

@@ -1,15 +1,10 @@
 package tokens
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/json"
 	"testing"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 func TestPurposeMaskJSONRoundtrip(t *testing.T) {
@@ -70,42 +65,6 @@ func TestLeafHashJSON(t *testing.T) {
 	}
 	if bs, err := json.Marshal(&h); err != nil || string(bs) != `"YWJj"` {
 		t.Fatalf("unexpected marshal result %q (err=%v)", string(bs), err)
-	}
-}
-
-func TestEmbeddedKeyUnmarshalKey(t *testing.T) {
-	var ek EmbeddedKey
-	if priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader); err != nil {
-		t.Fatalf("failed to generate key: %v", err)
-	} else if key, err := jwk.Import(priv); err != nil {
-		t.Fatalf("failed to wrap key: %v", err)
-	} else if pk, err := key.PublicKey(); err != nil {
-		t.Fatalf("cannot get public key: %v", err)
-	} else if err := pk.Set("alg", jwa.ES256()); err != nil {
-		t.Fatalf("set alg: %v", err)
-	} else if expectedKid, err := SetKID(pk, true); err != nil {
-		t.Fatalf("set kid: %v", err)
-	} else if bs, err := json.Marshal(pk); err != nil {
-		t.Fatalf("marshal key: %v", err)
-	} else if err := json.Unmarshal(bs, &ek); err != nil {
-		t.Fatalf("unmarshal embedded key: %v", err)
-	} else if ek.Key == nil {
-		t.Fatalf("expected parsed key to be present")
-	} else if !jwk.Equal(pk, *ek.Key) {
-		t.Fatalf("parsed key does not equal serialized key")
-	} else if ek.Kid != expectedKid {
-		t.Fatalf("unexpected kid %q, want %q", ek.Kid, expectedKid)
-	}
-}
-
-func TestEmbeddedKeyUnmarshalKidOnly(t *testing.T) {
-	var ek EmbeddedKey
-	if err := json.Unmarshal([]byte(`"kid123"`), &ek); err != nil {
-		t.Fatalf("unmarshal kid only: %v", err)
-	} else if ek.Key != nil {
-		t.Fatalf("expected no parsed key when value is bare kid")
-	} else if ek.Kid != "kid123" {
-		t.Fatalf("unexpected kid %q", ek.Kid)
 	}
 }
 

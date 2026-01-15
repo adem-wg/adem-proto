@@ -23,7 +23,6 @@ func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, 
 		var end bool
 		var endLog tokens.Log
 		if endorsedKID, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
-			log.Printf("could not not get endorsed kid: %s", err)
 			continue
 		} else if endSub, ok := endorsement.Token.Subject(); !ok {
 			log.Printf("ill-formed endorsement: misses sub claim\n")

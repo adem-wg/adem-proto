@@ -21,15 +21,11 @@ var ErrUnsupportedKey = errors.New("unsupported key")
 
 // Get the KID of a key endorsed in an emblem.
 func GetEndorsedKID(t jwt.Token) (string, error) {
-	var jwkKey EmbeddedKey
-	if err := t.Get("key", &jwkKey); err != nil {
-		if errors.Is(err, jwt.ClaimNotFoundError()) {
-			return "", ErrNoEndorsedKey
-		} else {
-			return "", err
-		}
+	var kid string
+	if err := t.Get("key", &kid); err != nil {
+		return "", err
 	} else {
-		return jwkKey.Kid, nil
+		return kid, nil
 	}
 }
 
