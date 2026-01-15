@@ -10,6 +10,7 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
 	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var ErrNoKeyFound = errors.New("no key found")
@@ -118,13 +119,21 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 
 	var emblem *ADEMToken
-	var protected tokens.Assets
+	var protected tokens.Assets // TODO: fix missing assignment
 	endorsements := []ADEMToken{}
 	for _, t := range verifiedTokens {
 		if t.IsEndorsement {
 			endorsements = append(endorsements, t)
 		} else if emblem == nil {
 			emblem = &t
+			if err := emblem.Token.Get("assets", &protected); err != nil {
+				if errors.Is(err, jwt.ClaimNotFoundError()) {
+					log.Printf("No assets claim")
+				} else {
+					log.Printf("Could not access assets claim: %s", err)
+				}
+				return ResultInvalid()
+			}
 		} else {
 			// Multiple emblems
 			log.Print("Token set contains multiple emblems")
