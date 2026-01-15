@@ -5,4 +5,4 @@ fi
 
 go run github.com/adem-wg/adem-proto/cmd/emblemgen \
   -skey private_end.pem -alg ES512 -proto endorsement.json \
-  -pk private_emb.pem -set-jwk > endorsement.jws
+  -pk private_emb.pem > endorsement.jws
