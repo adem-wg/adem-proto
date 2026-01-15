@@ -7,7 +7,6 @@ package main
 
 import (
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,54 +26,39 @@ func init() {
 }
 
 var (
-	tokenValueGroup                = 3
-	tokenReg        *regexp.Regexp = regexp.MustCompile(`^adem-((emb|end)-\d+)=(.+)`)
-	keyAlgGroup     int            = 1
-	keyValueGroup   int            = 2
-	keyReg          *regexp.Regexp = regexp.MustCompile(`^key-([A-Za-z0-9]+)=(.+)`)
+	tokenValueGroup                = 2
+	tokenReg        *regexp.Regexp = regexp.MustCompile(`^adem(-.+)?=(.+)`)
 )
 
 func main() {
 	flag.Parse()
 
 	if args.ProbeDNS() {
-		if tokens, keys, err := probeDNS(args.LoadProbeTarget()); err != nil {
+		if tokens, err := probeDNS(args.LoadProbeTarget()); err != nil {
 			log.Fatalf("could not probe dns: %s", err)
 		} else {
 			printTokens(tokens)
-			printKeys(keys)
 		}
 	} else {
 		log.Fatal("no probe mechanisms enabled")
 	}
 }
 
-func probeDNS(name string) ([]string, jwk.Set, error) {
+func probeDNS(name string) ([]string, error) {
 	records, err := net.LookupTXT(name)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	tokens := make([]string, 0)
-	keys := jwk.NewSet()
 	for _, record := range records {
 		if match := tokenReg.FindStringSubmatch(record); match != nil {
 			tokens = append(tokens, match[tokenValueGroup])
-		} else if match := keyReg.FindStringSubmatch(record); match != nil {
-			algStr := match[keyAlgGroup]
-			rawKey := match[keyValueGroup]
-			if alg, ok := jwa.LookupSignatureAlgorithm(algStr); !ok {
-				log.Printf("unknown key algorithm in DNS TXT record: %s", algStr)
-			} else if jwkKey, err := parseKey([]byte(rawKey), alg); err != nil {
-				log.Printf("could not parse DNS key for alg %s: %s", algStr, err)
-			} else {
-				keys.AddKey(jwkKey)
-			}
 		}
 	}
 
-	log.Printf("probed %d token(s) and %d key(s) via DNS", len(tokens), keys.Len())
-	return tokens, keys, nil
+	log.Printf("probed %d token(s) via DNS", len(tokens))
+	return tokens, nil
 }
 
 // Decodes a base64-encoded ASN.1 public key into a JWK.
@@ -100,16 +84,6 @@ func printTokens(tokens []string) {
 	for _, token := range tokens {
 		if _, err := fmt.Println(token); err != nil {
 			log.Fatalf("error printing token: %s", err)
-		}
-	}
-}
-
-func printKeys(keys jwk.Set) {
-	if keys != nil && keys.Len() > 0 {
-		if raw, err := json.Marshal(keys); err != nil {
-			log.Fatalf("error marshalling JWK set: %s", err)
-		} else if _, err := fmt.Println(string(raw)); err != nil {
-			log.Fatalf("error printing JWK set: %s", err)
 		}
 	}
 }
