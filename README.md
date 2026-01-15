@@ -1,7 +1,9 @@
 # ADEM Prototypes
 
-This repository contains libraries and command line utilities that provide prototypes for *An Authentic Digital Emblem* (ADEM) as specified in https://adem-wg.github.io/adem-spec/.
-The prototypes are not fully specification compliant yet and will continue to evolve.
+This repository contains libraries and command line utilities that provide prototypes for *An Authentic Digital Emblem* (ADEM) as specified in the internet drafts:
+
+- https://adem-wg.github.io/adem-core-spec/draft-linker-diem-adem-core.html
+- https://adem-wg.github.io/adem-dns-spec/draft-linker-diem-adem-dns.html
 
 ## Prerequisites
 
