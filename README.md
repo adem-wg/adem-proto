@@ -134,7 +134,10 @@ certbot -d example.com -d d34db33f.adem-configuration.example.com
 
 Once you have obtained the certificate, run `certbot certificates` and look up the "Certificate Path" where it is stored.
 This should be a file called `fullchain.pem`.
-To run the next command, you will likely need to wait some time until the certificate is included in the Certificate Transparency (CT) logs.
+Note that you need not install this certificate, i.e., it need not be used by an HTTPS webserver.
+When it comes to ADEM, we only require the certificate to be included in the Certificate Transparency (CT) logs.
+
+To run the next command, you will likely need to wait some time until the certificate is included in the CT logs.
 The command will compute information to check whether the certificate associated with your root key is included in the CT logs.
 
 ```sh
