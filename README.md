@@ -31,7 +31,7 @@ go run github.com/adem-wg/adem-proto/cmd/XXXXX
 
 ## Usage
 
-We provide documentation in our [Wiki](/adem-wg/adem-proto/wiki) and examples are in the `exm` directory.
+We provide documentation in our [Wiki](https://github.com/adem-wg/adem-proto/wiki) and examples are in the [`exm`](/exm) directory.
 
 In our documentation, we will reference individual commands by name only, e.g., `emblemcheck`.
 We assume that you either compiled the respective binary (see above) or prefix the commands with `go run github.com/adem-wg/adem-proto/cmd/...`.
