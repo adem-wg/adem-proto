@@ -18,10 +18,11 @@ type TokenGenerator interface {
 }
 
 type EmblemConfig struct {
-	sk       jwk.Key
-	alg      jwa.SignatureAlgorithm
-	proto    jwt.Token
-	lifetime int64
+	sk           jwk.Key
+	headerKeyJwk bool
+	alg          jwa.SignatureAlgorithm
+	proto        jwt.Token
+	lifetime     int64
 }
 
 func MkEmblemCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64) *EmblemConfig {
@@ -65,7 +66,7 @@ func prepToken(t jwt.Token, lifetime int64) error {
 	return nil
 }
 
-func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key) ([]byte, error) {
+func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key, headerKeyJwk bool) ([]byte, error) {
 	headers := jws.NewHeaders()
 	headers.Set("cty", string(cty))
 	verifKey, err := signingKey.PublicKey()
@@ -73,10 +74,12 @@ func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, si
 		return nil, err
 	} else if err := verifKey.Set("alg", alg.String()); err != nil {
 		return nil, err
-	} else if _, err := tokens.SetKID(verifKey, true); err != nil {
+	} else if headerKeyJwk {
+		headers.Set("jwk", verifKey)
+	} else if kid, err := tokens.GetKID(verifKey); err != nil {
 		return nil, err
 	} else {
-		headers.Set("jwk", verifKey)
+		headers.Set("kid", kid)
 	}
 
 	return jwt.Sign(t, jwt.WithKey(alg, signingKey, jws.WithProtectedHeaders(headers)))

@@ -25,6 +25,7 @@ func main() {
 	if endorseKey == nil {
 		_, signedToken, err = gen.SignEmblem(
 			args.LoadPrivateKey(),
+			args.LoadHeaderKeyJWK(),
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
 			args.LoadLifetime(),
@@ -39,6 +40,7 @@ func main() {
 		}
 		_, signedToken, err = gen.SignEndorsement(
 			args.LoadPrivateKey(),
+			args.LoadHeaderKeyJWK(),
 			args.LoadAlg(),
 			proto,
 			endorseKey,

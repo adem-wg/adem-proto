@@ -9,10 +9,10 @@ import (
 )
 
 func (cfg *EndorsementConfig) SignToken() (jwt.Token, []byte, error) {
-	return SignEndorsement(cfg.sk, cfg.alg, cfg.proto, cfg.endorse, cfg.endorseAlg, cfg.lifetime)
+	return SignEndorsement(cfg.sk, cfg.headerKeyJwk, cfg.alg, cfg.proto, cfg.endorse, cfg.endorseAlg, cfg.lifetime)
 }
 
-func SignEndorsement(secretKey jwk.Key, signingAlg jwa.SignatureAlgorithm, token jwt.Token, endorseKey jwk.Key, pkAlg jwa.SignatureAlgorithm, lifetime int64) (jwt.Token, []byte, error) {
+func SignEndorsement(secretKey jwk.Key, headerKeyJwk bool, signingAlg jwa.SignatureAlgorithm, token jwt.Token, endorseKey jwk.Key, pkAlg jwa.SignatureAlgorithm, lifetime int64) (jwt.Token, []byte, error) {
 	if err := prepToken(token, lifetime); err != nil {
 		return nil, nil, err
 	}
@@ -32,7 +32,7 @@ func SignEndorsement(secretKey jwk.Key, signingAlg jwa.SignatureAlgorithm, token
 		return nil, nil, err
 	}
 
-	compact, err := signWithHeaders(token, consts.EndorsementCty, signingAlg, secretKey)
+	compact, err := signWithHeaders(token, consts.EndorsementCty, signingAlg, secretKey, headerKeyJwk)
 	if err != nil {
 		return nil, nil, err
 	}

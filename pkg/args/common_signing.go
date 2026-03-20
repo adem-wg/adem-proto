@@ -21,6 +21,7 @@ var logsPath string
 var publicKeyPath string
 var publicKeyJWK bool
 var publicKeyAlg string
+var headerKeyFmt string
 
 func AddSigningArgs() {
 	flag.StringVar(&alg, "alg", "", "signing algorithm")
@@ -29,6 +30,7 @@ func AddSigningArgs() {
 	flag.BoolVar(&skeyJWK, "skey-jwk", false, "is the signing key encoded as JWK? Default is PEM")
 	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
 	flag.StringVar(&logsPath, "logs", "", "path to key commitment information")
+	flag.StringVar(&headerKeyFmt, "key-fmt", "kid", "should the verification key in the header be included as full key (jwk) or by reference (kid)? Default is kid.")
 }
 
 func AddPublicKeyArgs() {
@@ -111,5 +113,16 @@ func LoadPublicKey() jwk.Key {
 		return nil
 	} else {
 		return k
+	}
+}
+
+func LoadHeaderKeyJWK() bool {
+	switch headerKeyFmt {
+	case "jwk":
+		return true
+	case "kid":
+		return false
+	default:
+		panic("illegal argument for key-fmt")
 	}
 }
