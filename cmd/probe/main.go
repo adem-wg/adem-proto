@@ -6,8 +6,6 @@ as newline-separated tokens followed by a JWK set.
 package main
 
 import (
-	"crypto/x509"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -15,10 +13,6 @@ import (
 	"regexp"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
-	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 func init() {
@@ -26,8 +20,10 @@ func init() {
 }
 
 var (
-	tokenValueGroup                = 2
-	tokenReg        *regexp.Regexp = regexp.MustCompile(`^adem(-.+)?=(.+)`)
+	tokenGroup                = 2
+	tokenReg   *regexp.Regexp = regexp.MustCompile(`^adem-token(-.+)?=(.+)`)
+	keyGroup                  = 2
+	keyReg     *regexp.Regexp = regexp.MustCompile(`^adem-key(-.+)?=(.+)`)
 )
 
 func main() {
@@ -53,31 +49,14 @@ func probeDNS(name string) ([]string, error) {
 	tokens := make([]string, 0)
 	for _, record := range records {
 		if match := tokenReg.FindStringSubmatch(record); match != nil {
-			tokens = append(tokens, match[tokenValueGroup])
+			tokens = append(tokens, match[tokenGroup])
+		} else if match := keyReg.FindStringSubmatch(record); match != nil {
+			tokens = append(tokens, match[keyGroup])
 		}
 	}
 
 	log.Printf("probed %d token(s) via DNS", len(tokens))
 	return tokens, nil
-}
-
-// Decodes a base64-encoded ASN.1 public key into a JWK.
-func parseKey(raw []byte, algHint jwa.SignatureAlgorithm) (jwk.Key, error) {
-	if decoded, err := util.B64Dec(raw); err != nil {
-		return nil, err
-	} else if parsed, err := x509.ParsePKIXPublicKey(decoded); err != nil {
-		return nil, err
-	} else if algHint == jwa.NoSignature() {
-		return nil, errors.New("cannot use none as algorithm")
-	} else if jwkKey, err := jwk.Import(parsed); err != nil {
-		return nil, err
-	} else if err := jwkKey.Set("alg", algHint); err != nil {
-		return nil, err
-	} else if _, err := tokens.SetKID(jwkKey, true); err != nil {
-		return nil, err
-	} else {
-		return jwkKey, nil
-	}
 }
 
 func printTokens(tokens []string) {
