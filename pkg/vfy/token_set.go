@@ -16,17 +16,19 @@ type TokenVerifier struct {
 }
 
 type TokenSet struct {
-	verified     map[string]bool
-	dependencies map[string][]TokenVerifier
-	roots        []ADEMToken
-	results      []ADEMToken
-	errors       []error
+	verified      map[string]bool
+	dependencies  map[string][]TokenVerifier
+	untrustedKeys jwk.Set
+	roots         []ADEMToken
+	results       []ADEMToken
+	errors        []error
 }
 
-func NewTokenSet() TokenSet {
+func NewTokenSet(untrustedKeys jwk.Set) TokenSet {
 	var th TokenSet
 	th.verified = make(map[string]bool)
 	th.dependencies = make(map[string][]TokenVerifier)
+	th.untrustedKeys = untrustedKeys
 	th.roots = make([]ADEMToken, 0)
 	th.results = make([]ADEMToken, 0)
 	th.errors = make([]error, 0)
@@ -38,36 +40,50 @@ func (th *TokenSet) AddToken(rawToken []byte) error {
 		return err
 	} else if len(msg.Signatures()) != 1 {
 		return ErrTokenNonCompact
-	} else if headerKey, ok := msg.Signatures()[0].ProtectedHeaders().JWK(); headerKey == nil || !ok {
-		return ErrNoKeyFound
-	} else if verificationKid, err := tokens.SetKID(headerKey, true); err != nil {
-		return err
 	} else {
-		verifier := VerifierFor(rawToken, headerKey)
-		var logs tokens.Log
-		if body, err := jwt.Parse(msg.Payload(), jwt.WithVerify(false)); err != nil {
-			return err
-		} else if err := body.Get("log", &logs); err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
-			return err
-		} else if err == nil {
-			if len(logs) == 0 {
-				return ErrLogsEmpty
-			} else if iss, ok := body.Issuer(); !ok {
-				return ErrNoIss
-			} else if t, err := verifier.Verify(); err != nil {
-				return err
+		headers := msg.Signatures()[0].ProtectedHeaders()
+		var verificationKey jwk.Key
+		if headerKid, ok := headers.KeyID(); ok {
+			if kidKey, ok := th.untrustedKeys.LookupKeyID(headerKid); ok {
+				verificationKey = kidKey
 			} else {
-				for _, r := range roots.VerifyBindingCerts(iss, headerKey, logs) {
-					if !r.Ok {
-						return ErrRootKeyUnbound
-					}
-				}
-				th.roots = append(th.roots, *t)
+				return ErrNoKeyFound
 			}
+		} else if headerKey, ok := headers.JWK(); headerKey != nil && ok {
+			verificationKey = headerKey
 		} else {
-			th.dependencies[verificationKid] = append(th.dependencies[verificationKid], verifier)
+			return ErrNoKeyFound
 		}
-		return nil
+
+		if verificationKid, err := tokens.SetKID(verificationKey, true); err != nil {
+			return err
+		} else {
+			verifier := VerifierFor(rawToken, verificationKey)
+			var logs tokens.Log
+			if body, err := jwt.Parse(msg.Payload(), jwt.WithVerify(false)); err != nil {
+				return err
+			} else if err := body.Get("log", &logs); err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
+				return err
+			} else if err == nil {
+				if len(logs) == 0 {
+					return ErrLogsEmpty
+				} else if iss, ok := body.Issuer(); !ok {
+					return ErrNoIss
+				} else if t, err := verifier.Verify(); err != nil {
+					return err
+				} else {
+					for _, r := range roots.VerifyBindingCerts(iss, verificationKey, logs) {
+						if !r.Ok {
+							return ErrRootKeyUnbound
+						}
+					}
+					th.roots = append(th.roots, *t)
+				}
+			} else {
+				th.dependencies[verificationKid] = append(th.dependencies[verificationKid], verifier)
+			}
+			return nil
+		}
 	}
 }
 

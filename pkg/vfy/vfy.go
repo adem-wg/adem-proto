@@ -1,6 +1,7 @@
 package vfy
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -89,6 +90,25 @@ const SIGNED_TRUSTED VerificationResult = 5
 const ORGANIZATIONAL_TRUSTED VerificationResult = 6
 const ENDORSED_TRUSTED VerificationResult = 7
 
+func filterKeys(rawTokens [][]byte) ([][]byte, jwk.Set) {
+	remaining := make([][]byte, 0)
+	keys := jwk.NewSet()
+	for _, t := range rawTokens {
+		var key jwk.Key
+		if err := json.Unmarshal(t, &key); err == nil {
+			if _, err := tokens.SetKID(key, true); err != nil {
+				log.Printf("could not compute kid: %s", err)
+			} else {
+				keys.AddKey(key)
+			}
+		} else {
+			remaining = append(remaining, t)
+		}
+	}
+
+	return remaining, keys
+}
+
 // Verify a slice of ADEM tokens.
 func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 
@@ -102,8 +122,9 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		trustedKeys = jwk.NewSet()
 	}
 
-	th := NewTokenSet()
-	for _, rawToken := range rawTokens {
+	tokensNoKeys, untrustedKeys := filterKeys(rawTokens)
+	th := NewTokenSet(untrustedKeys)
+	for _, rawToken := range tokensNoKeys {
 		if err := th.AddToken(rawToken); err != nil {
 			log.Printf("could not verify token: %s\n", err)
 		}
