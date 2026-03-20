@@ -64,7 +64,7 @@ func LoadLifetime() int64 {
 }
 
 func LoadPrivateKey() jwk.Key {
-	if ks, err := loadKeys(skeyFile, skeyJWK); err != nil {
+	if ks, err := LoadKeys(skeyFile, skeyJWK); err != nil {
 		log.Fatalf("could not load skey: %s", err)
 		return nil
 	} else if k, ok := ks.Key(0); !ok {
@@ -103,7 +103,7 @@ func LoadLogs() tokens.Log {
 }
 
 func LoadPublicKey() jwk.Key {
-	if ks, err := loadKeys(publicKeyPath, publicKeyJWK); err == ErrEmptyPath {
+	if ks, err := LoadKeys(publicKeyPath, publicKeyJWK); err == ErrEmptyPath {
 		return nil
 	} else if err != nil {
 		log.Fatalf("could not load pk: %s", err)

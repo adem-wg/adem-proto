@@ -68,7 +68,7 @@ func LoadTrustedKeys() jwk.Set {
 		return jwk.NewSet()
 	}
 
-	if ks, err := loadKeys(trustedKeyPath, trustedKeyJWK); err != nil {
+	if ks, err := LoadKeys(trustedKeyPath, trustedKeyJWK); err != nil {
 		log.Fatalf("could not load trusted keys: %s", err)
 		return nil
 	} else {

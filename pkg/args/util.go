@@ -9,7 +9,7 @@ import (
 
 var ErrEmptyPath = errors.New("no path provided")
 
-func loadKeys(path string, isJWK bool) (jwk.Set, error) {
+func LoadKeys(path string, isJWK bool) (jwk.Set, error) {
 	if path == "" {
 		return nil, ErrEmptyPath
 	} else if bs, err := os.ReadFile(path); err != nil {
