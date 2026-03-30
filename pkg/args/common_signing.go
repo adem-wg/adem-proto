@@ -36,6 +36,9 @@ func AddSigningArgs() {
 func AddPublicKeyArgs() {
 	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public keys (for endorsements or verification) either PEM file or JWK set")
 	flag.BoolVar(&publicKeyJWK, "pk-jwk", false, "are the keys encoded as JWK? If not set, PEM is assumed.")
+}
+
+func AddPublicKeyAlgArgs() {
 	flag.StringVar(&publicKeyAlg, "pk-alg", "", "public key alg (if omitted, will use -alg)")
 }
 
@@ -48,14 +51,23 @@ func LoadAlg() jwa.SignatureAlgorithm {
 	}
 }
 
-func LoadPKAlg() jwa.SignatureAlgorithm {
+func LoadPKAlgOpt() (jwa.SignatureAlgorithm, bool) {
 	if publicKeyAlg == "" {
-		return LoadAlg()
+		return jwa.NoSignature(), false
 	} else if alg, ok := jwa.LookupSignatureAlgorithm(publicKeyAlg); !ok {
 		log.Fatalf(`"-pk-alg %s" algorithm not found`, publicKeyAlg)
-		return jwa.NoSignature()
+		return jwa.NoSignature(), false
 	} else {
+		return alg, true
+	}
+}
+
+func LoadPKAlg() jwa.SignatureAlgorithm {
+	if alg, ok := LoadPKAlgOpt(); ok {
 		return alg
+	} else {
+		// Default to private key algorithm
+		return LoadAlg()
 	}
 }
 

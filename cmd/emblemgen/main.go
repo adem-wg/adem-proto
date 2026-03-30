@@ -15,6 +15,7 @@ import (
 func init() {
 	args.AddSigningArgs()
 	args.AddPublicKeyArgs()
+	args.AddPublicKeyAlgArgs()
 }
 
 func main() {

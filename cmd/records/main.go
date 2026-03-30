@@ -3,14 +3,20 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 )
+
+func init() {
+	args.AddPublicKeyAlgArgs()
+}
 
 func printTokens(path string) {
 	fp, err := os.Open(path)
@@ -28,7 +34,7 @@ func printTokens(path string) {
 	}
 }
 
-func printKeys(keys jwk.Set) {
+func printKeys(keys jwk.Set, alg jwa.SignatureAlgorithm, setAlg bool) {
 	if keys == nil {
 		log.Fatal("key set is nil")
 	}
@@ -41,16 +47,27 @@ func printKeys(keys jwk.Set) {
 		} else if bJwk, err := json.Marshal(pk); err != nil {
 			log.Printf("could not encode key: %s", err)
 		} else {
+			if setAlg {
+				if err := pk.Set("alg", alg.String()); err != nil {
+					log.Printf("could not set alg: %s", err)
+					continue
+				}
+			}
+
 			fmt.Printf("adem-key=%s\n", bJwk)
 		}
 	}
 }
 
 func main() {
-	files := os.Args[1:]
+	flag.Parse()
+	files := flag.Args()
 	if len(files) == 0 {
-		log.Fatalf("no input files")
+		flag.PrintDefaults()
+		log.Fatalf("no input")
 	}
+
+	alg, algOk := args.LoadPKAlgOpt()
 
 	for _, file := range files {
 		switch filepath.Ext(file) {
@@ -60,13 +77,13 @@ func main() {
 			if keys, err := args.LoadKeys(file, false); err != nil {
 				log.Printf("cannot load keys: %s", err)
 			} else {
-				printKeys(keys)
+				printKeys(keys, alg, algOk)
 			}
 		case ".jwk":
 			if keys, err := args.LoadKeys(file, true); err != nil {
 				log.Printf("cannot load keys: %s", err)
 			} else {
-				printKeys(keys)
+				printKeys(keys, alg, algOk)
 			}
 		default:
 			log.Printf("unsupported file format: %s", file)

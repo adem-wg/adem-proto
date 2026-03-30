@@ -21,6 +21,7 @@ var OI string
 
 func init() {
 	args.AddPublicKeyArgs()
+	args.AddPublicKeyAlgArgs()
 	args.AddCTArgs()
 	args.AddVerificationArgs()
 	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")

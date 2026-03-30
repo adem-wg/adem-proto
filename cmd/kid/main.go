@@ -19,6 +19,7 @@ import (
 
 func init() {
 	args.AddPublicKeyArgs()
+	args.AddPublicKeyAlgArgs()
 }
 
 func main() {
