@@ -44,17 +44,20 @@ func printKeys(keys jwk.Set, alg jwa.SignatureAlgorithm, setAlg bool) {
 			log.Printf("cannot access key at %d", i)
 		} else if pk, err := k.PublicKey(); err != nil {
 			log.Printf("cannot get key: %s", err)
-		} else if bJwk, err := json.Marshal(pk); err != nil {
-			log.Printf("could not encode key: %s", err)
 		} else {
 			if setAlg {
-				if err := pk.Set("alg", alg.String()); err != nil {
+				if err := pk.Set("alg", alg); err != nil {
 					log.Printf("could not set alg: %s", err)
 					continue
 				}
 			}
 
-			fmt.Printf("adem-key=%s\n", bJwk)
+			if bJwk, err := json.Marshal(pk); err != nil {
+				log.Printf("could not encode key: %s", err)
+				continue
+			} else {
+				fmt.Printf("adem-key=%s\n", bJwk)
+			}
 		}
 	}
 }
