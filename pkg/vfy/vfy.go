@@ -1,7 +1,6 @@
 package vfy
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -94,8 +93,7 @@ func filterKeys(rawTokens [][]byte) ([][]byte, jwk.Set) {
 	remaining := make([][]byte, 0)
 	keys := jwk.NewSet()
 	for _, t := range rawTokens {
-		var key jwk.Key
-		if err := json.Unmarshal(t, &key); err == nil {
+		if key, err := jwk.ParseKey(t); err == nil {
 			if _, err := tokens.SetKID(key, true); err != nil {
 				log.Printf("could not compute kid: %s", err)
 			} else {
