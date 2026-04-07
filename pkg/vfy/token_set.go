@@ -102,7 +102,7 @@ func (th *TokenSet) Verify(trustedKeys jwk.Set) ([]ADEMToken, []error) {
 
 	for i := range trustedKeys.Len() {
 		if k, ok := trustedKeys.Key(i); !ok {
-			th.errors = append(th.errors, fmt.Errorf("could not access trusted keys at index %s", i))
+			th.errors = append(th.errors, fmt.Errorf("could not access trusted keys at index %d", i))
 		} else if kid, err := tokens.SetKID(k, true); err != nil {
 			th.errors = append(th.errors, err)
 		} else {
