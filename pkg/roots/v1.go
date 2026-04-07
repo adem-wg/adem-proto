@@ -1,6 +1,6 @@
 /*
 This file implements the checking of root key commitments for the Certificate
-Transparency API in v1.
+Transparency API in v1 and the binding checks shared across CT APIs.
 */
 package roots
 
@@ -52,7 +52,7 @@ func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
 
 // Verify that the given certificate hash is included in the log identified by
 // the respective client.
-func VerifyInclusion(cl *client.LogClient, hash []byte) ([]string, error) {
+func verifyV1Inclusion(cl *client.LogClient, hash []byte) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Minute))
 	defer cancel()
 

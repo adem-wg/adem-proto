@@ -1,8 +1,7 @@
 package roots
 
 import (
-	"bytes"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -10,84 +9,80 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/google/certificate-transparency-go/client"
-	"github.com/google/certificate-transparency-go/jsonclient"
+	"github.com/google/certificate-transparency-go/loglist3"
 )
 
 var ErrUnknownLog = errors.New("unknown log")
 
-const log_list_google = "https://www.gstatic.com/ct/log_list/v3/log_list.json"
-const log_list_apple = "https://valid.apple.com/ct/log_list/current_log_list.json"
+type CTLog struct {
+	KeyDER           []byte
+	V1URL            string
+	StaticSubmission string
+	StaticMonitoring string
+}
 
-// Map that stores Certificate Transparency log info associated to their IDs.
+func (l CTLog) v1URL() string {
+	if l.V1URL != "" {
+		return l.V1URL
+	}
+	return l.StaticSubmission
+}
+
+func (l CTLog) staticMonitoringURL() string {
+	if l.StaticMonitoring != "" {
+		return l.StaticMonitoring
+	}
+	if l.StaticSubmission != "" {
+		return l.StaticSubmission
+	}
+	return l.V1URL
+}
+
 var ctLogs map[string]CTLog = make(map[string]CTLog)
-
-// [ctLogs] access lock.
 var logMapLock sync.Mutex = sync.Mutex{}
 
-func storeLogs(rawJson []byte) error {
-	logMapLock.Lock()
-	defer logMapLock.Unlock()
-
-	logs := KnownLogs{}
-	err := json.Unmarshal(rawJson, &logs)
+func storeLogs(rawJSON []byte) error {
+	ll, err := loglist3.NewFromJSON(rawJSON)
 	if err != nil {
 		return err
 	}
 
-	for _, operator := range logs.Operators {
+	logMapLock.Lock()
+	defer logMapLock.Unlock()
+
+	for _, operator := range ll.Operators {
 		for _, l := range operator.Logs {
-			ctLogs[l.Id] = l
+			id := base64.StdEncoding.EncodeToString(l.LogID)
+			entry := ctLogs[id]
+			entry.KeyDER = append([]byte(nil), l.Key...)
+			entry.V1URL = l.URL
+			ctLogs[id] = entry
+		}
+
+		for _, l := range operator.TiledLogs {
+			id := base64.StdEncoding.EncodeToString(l.LogID)
+			entry := ctLogs[id]
+			entry.KeyDER = append([]byte(nil), l.Key...)
+			entry.StaticSubmission = l.SubmissionURL
+			entry.StaticMonitoring = l.MonitoringURL
+			ctLogs[id] = entry
 		}
 	}
 
 	return nil
 }
 
-// Get the log client associate to a CT log ID.
-func GetLogClient(id string) (*client.LogClient, error) {
+func GetLog(id string) (CTLog, error) {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
+
 	log, ok := ctLogs[id]
 	if !ok {
-		return nil, ErrUnknownLog
+		return CTLog{}, ErrUnknownLog
 	}
-
-	return client.New(log.Url, http.DefaultClient, jsonclient.Options{PublicKeyDER: log.Key.raw})
+	return log, nil
 }
 
-// Partial JSON scheme of [log_list_google] and [log_list_apple].
-type KnownLogs struct {
-	Operators []Operator `json:"operators"`
-}
-
-type Operator struct {
-	Logs []CTLog `json:"logs"`
-}
-
-type CTLog struct {
-	Key LogKey `json:"key"`
-	Id  string `json:"log_id"`
-	Url string `json:"url"`
-}
-
-// Wrapper type for JSON unmarshalling of CT log public keys.
-type LogKey struct {
-	raw []byte
-}
-
-// Decodes a base64-encoded JSON string into a CT log public key.
-func (k *LogKey) UnmarshalJSON(bs []byte) (err error) {
-	if raw, e := util.B64Dec(bytes.Trim(bs, `"`)); e != nil {
-		err = e
-	} else {
-		k.raw = raw
-	}
-	return
-}
-
-// Load logs from a given log list.
 func fetchLogs(url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -103,14 +98,12 @@ func fetchLogs(url string) error {
 	return storeLogs(body)
 }
 
-// Load logs known to Google.
 func FetchGoogleKnownLogs() error {
-	return fetchLogs(log_list_google)
+	return fetchLogs(loglist3.LogListURL)
 }
 
-// Load logs known to Apple.
 func FetchAppleKnownLogs() error {
-	return fetchLogs(log_list_apple)
+	return fetchLogs("https://valid.apple.com/ct/log_list/current_log_list.json")
 }
 
 func ReadKnownLogs(pattern string) error {

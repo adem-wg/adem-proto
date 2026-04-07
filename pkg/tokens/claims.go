@@ -114,11 +114,16 @@ type EmblemConstraints struct {
 	Window       *int         `json:"wnd,omitempty"`
 }
 
+// TODO: Move these constants into the package `consts`
+const LogVersionV1 = "v1"
+const LogVersionStatic = "static"
+
 // Struct that represents an identifying log binding.
 type LogConfig struct {
-	Ver  string   `json:"ver"`
-	Id   string   `json:"id"`
-	Hash LeafHash `json:"hash"`
+	Ver   string     `json:"ver"`
+	Id    string     `json:"id"`
+	Hash  *LeafHash  `json:"hash,omitempty"`
+	Index *LeafIndex `json:"index,omitempty"`
 }
 
 // Wrapper type for easier JSON unmarshalling of base64-encoded JSON strings of
@@ -143,6 +148,29 @@ func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
 
 func (h *LeafHash) MarshalJSON() ([]byte, error) {
 	return json.Marshal(h.B64)
+}
+
+var ErrLeafIndexRange = errors.New("leaf index out of range")
+
+// Wrapper type for JSON unmarshalling of uint40 Static CT leaf indexes.
+type LeafIndex struct {
+	Value uint64
+}
+
+func (i *LeafIndex) UnmarshalJSON(bs []byte) error {
+	var value uint64
+	if err := json.Unmarshal(bs, &value); err != nil {
+		return err
+	} else if value >= 1<<40 {
+		// TODO: Do not enforce the uint40 range on the index
+		return ErrLeafIndexRange
+	}
+	i.Value = value
+	return nil
+}
+
+func (i *LeafIndex) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.Value)
 }
 
 var ErrIllegalVersion = errors.New("illegal version")

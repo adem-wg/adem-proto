@@ -21,8 +21,8 @@ type CTQueryResult struct {
 // Transparency infrastructure for the given issuer.
 func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQueryResult {
 	verified := VerifyInclusionConfig(logs)
-	for _, queryResult := range verified {
-		queryResult.Ok = VerifyBinding(queryResult, iss, key) == nil
+	for i := range verified {
+		verified[i].Ok = VerifyBinding(verified[i], iss, key) == nil
 	}
 	return verified
 }
@@ -32,16 +32,18 @@ func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQ
 func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
 	results := []CTQueryResult{}
 	for _, logConfig := range logs {
-		result := CTQueryResult{LogID: logConfig.Id}
-		if logConfig.Ver != "v1" {
-			log.Printf("log %s illegal version", logConfig.Id)
+		result := CTQueryResult{}
+		if logConfig == nil {
+			log.Print("nil log config")
 			result.Ok = false
-		} else if cl, err := GetLogClient(logConfig.Id); err != nil {
-			log.Printf("could not get log client: %s", logConfig.Id)
+		} else if verifier, err := GetInclusionVerifier(logConfig); err != nil {
+			result.LogID = logConfig.Id
+			log.Printf("could not get log client: %s", err)
 			result.Ok = false
 		} else {
-			result.LogURL = cl.BaseURI()
-			subjs, err := VerifyInclusion(cl, logConfig.Hash.Raw)
+			result.LogID = logConfig.Id
+			result.LogURL = verifier.URL()
+			subjs, err := verifier.VerifyInclusion(logConfig)
 			if err != nil {
 				log.Printf("could not verify binding: %s", err)
 			}
