@@ -72,12 +72,15 @@ func (th *TokenSet) AddToken(rawToken []byte) error {
 				} else if t, err := verifier.Verify(); err != nil {
 					return err
 				} else {
+					ok := false
 					for _, r := range roots.VerifyBindingCerts(iss, verificationKey, logs) {
-						if !r.Ok {
-							return ErrRootKeyUnbound
-						}
+						ok = ok || r.Ok
 					}
-					th.roots = append(th.roots, *t)
+					if !ok {
+						return ErrRootKeyUnbound
+					} else {
+						th.roots = append(th.roots, *t)
+					}
 				}
 			} else {
 				th.dependencies[verificationKid] = append(th.dependencies[verificationKid], verifier)

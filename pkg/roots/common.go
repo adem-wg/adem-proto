@@ -37,7 +37,7 @@ func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
 			log.Printf("log %s illegal version", logConfig.Id)
 			result.Ok = false
 		} else if cl, err := GetLogClient(logConfig.Id); err != nil {
-			log.Print("could not get log client")
+			log.Printf("could not get log client: %s", logConfig.Id)
 			result.Ok = false
 		} else {
 			result.LogURL = cl.BaseURI()
