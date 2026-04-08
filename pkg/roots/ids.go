@@ -42,34 +42,33 @@ var ctLogs map[string]CTLog = make(map[string]CTLog)
 var logMapLock sync.Mutex = sync.Mutex{}
 
 func storeLogs(rawJSON []byte) error {
-	ll, err := loglist3.NewFromJSON(rawJSON)
-	if err != nil {
+	if ll, err := loglist3.NewFromJSON(rawJSON); err != nil {
 		return err
-	}
+	} else {
+		logMapLock.Lock()
+		defer logMapLock.Unlock()
 
-	logMapLock.Lock()
-	defer logMapLock.Unlock()
+		for _, operator := range ll.Operators {
+			for _, l := range operator.Logs {
+				id := base64.StdEncoding.EncodeToString(l.LogID)
+				entry := ctLogs[id]
+				entry.KeyDER = append([]byte(nil), l.Key...)
+				entry.V1URL = l.URL
+				ctLogs[id] = entry
+			}
 
-	for _, operator := range ll.Operators {
-		for _, l := range operator.Logs {
-			id := base64.StdEncoding.EncodeToString(l.LogID)
-			entry := ctLogs[id]
-			entry.KeyDER = append([]byte(nil), l.Key...)
-			entry.V1URL = l.URL
-			ctLogs[id] = entry
+			for _, l := range operator.TiledLogs {
+				id := base64.StdEncoding.EncodeToString(l.LogID)
+				entry := ctLogs[id]
+				entry.KeyDER = append([]byte(nil), l.Key...)
+				entry.StaticSubmission = l.SubmissionURL
+				entry.StaticMonitoring = l.MonitoringURL
+				ctLogs[id] = entry
+			}
 		}
 
-		for _, l := range operator.TiledLogs {
-			id := base64.StdEncoding.EncodeToString(l.LogID)
-			entry := ctLogs[id]
-			entry.KeyDER = append([]byte(nil), l.Key...)
-			entry.StaticSubmission = l.SubmissionURL
-			entry.StaticMonitoring = l.MonitoringURL
-			ctLogs[id] = entry
-		}
+		return nil
 	}
-
-	return nil
 }
 
 func GetLog(id string) (CTLog, error) {
@@ -84,18 +83,18 @@ func GetLog(id string) (CTLog, error) {
 }
 
 func fetchLogs(url string) error {
-	resp, err := http.Get(url)
-	if err != nil {
+	if resp, err := http.Get(url); err != nil {
 		return err
-	}
-	defer resp.Body.Close()
+	} else {
+		defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
+		if body, err := io.ReadAll(resp.Body); err != nil {
+			return err
+		} else {
+			return storeLogs(body)
+		}
 
-	return storeLogs(body)
+	}
 }
 
 func FetchGoogleKnownLogs() error {
@@ -107,18 +106,17 @@ func FetchAppleKnownLogs() error {
 }
 
 func ReadKnownLogs(pattern string) error {
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
+	if matches, err := filepath.Glob(pattern); err != nil {
 		return err
-	}
-
-	for _, path := range matches {
-		if bs, err := os.ReadFile(path); err != nil {
-			return err
-		} else if err := storeLogs(bs); err != nil {
-			return err
+	} else {
+		for _, path := range matches {
+			if bs, err := os.ReadFile(path); err != nil {
+				return err
+			} else if err := storeLogs(bs); err != nil {
+				return err
+			}
 		}
-	}
 
-	return nil
+		return nil
+	}
 }

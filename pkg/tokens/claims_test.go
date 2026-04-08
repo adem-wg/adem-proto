@@ -10,17 +10,15 @@ import (
 func TestPurposeMaskJSONRoundtrip(t *testing.T) {
 	var pm PurposeMask = Protective | Indicative
 
-	bs, err := json.Marshal(&pm)
-	if err != nil {
+	if bs, err := json.Marshal(&pm); err != nil {
 		t.Fatalf("marshal failed: %v", err)
-	}
-
-	var decoded PurposeMask
-	if err := json.Unmarshal(bs, &decoded); err != nil {
-		t.Fatalf("unmarshal failed: %v", err)
-	}
-	if decoded != pm {
-		t.Fatalf("expected %b after roundtrip, got %b", pm, decoded)
+	} else {
+		var decoded PurposeMask
+		if err := json.Unmarshal(bs, &decoded); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		} else if decoded != pm {
+			t.Fatalf("expected %b after roundtrip, got %b", pm, decoded)
+		}
 	}
 }
 
@@ -34,17 +32,15 @@ func TestPurposeMaskInvalid(t *testing.T) {
 func TestChannelMaskJSONRoundtrip(t *testing.T) {
 	var cm ChannelMask = DNS | TLS | UDP
 
-	bs, err := json.Marshal(&cm)
-	if err != nil {
+	if bs, err := json.Marshal(&cm); err != nil {
 		t.Fatalf("marshal failed: %v", err)
-	}
-
-	var decoded ChannelMask
-	if err := json.Unmarshal(bs, &decoded); err != nil {
-		t.Fatalf("unmarshal failed: %v", err)
-	}
-	if decoded != cm {
-		t.Fatalf("expected %b after roundtrip, got %b", cm, decoded)
+	} else {
+		var decoded ChannelMask
+		if err := json.Unmarshal(bs, &decoded); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		} else if decoded != cm {
+			t.Fatalf("expected %b after roundtrip, got %b", cm, decoded)
+		}
 	}
 }
 

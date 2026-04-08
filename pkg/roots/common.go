@@ -43,12 +43,13 @@ func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
 		} else {
 			result.LogID = logConfig.Id
 			result.LogURL = verifier.URL()
-			subjs, err := verifier.VerifyInclusion(logConfig)
-			if err != nil {
+			if subjs, err := verifier.VerifyInclusion(logConfig); err != nil {
 				log.Printf("could not verify binding: %s", err)
+				result.Ok = false
+			} else {
+				result.Ok = true
+				result.subjects = subjs
 			}
-			result.Ok = err == nil
-			result.subjects = subjs
 		}
 		results = append(results, result)
 	}

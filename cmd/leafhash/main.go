@@ -71,16 +71,15 @@ func mkV1Cfg(logID []byte, leaf *ct.MerkleTreeLeaf) (*tokens.LogConfig, error) {
 }
 
 func mkStaticCfg(logID []byte, sct *ct.SignedCertificateTimestamp) (*tokens.LogConfig, error) {
-	ext, err := sunlight.ParseExtensions(sct.Extensions)
-	if err != nil {
+	if ext, err := sunlight.ParseExtensions(sct.Extensions); err != nil {
 		return nil, err
+	} else {
+		return &tokens.LogConfig{
+			Ver:   consts.LogVersionStatic,
+			Id:    base64.StdEncoding.EncodeToString(logID),
+			Index: &ext.LeafIndex,
+		}, nil
 	}
-
-	return &tokens.LogConfig{
-		Ver:   consts.LogVersionStatic,
-		Id:    base64.StdEncoding.EncodeToString(logID),
-		Index: &ext.LeafIndex,
-	}, nil
 }
 
 func mkV1Leaf(certChain []*x509.Certificate, timestamp uint64) (*ct.MerkleTreeLeaf, error) {
