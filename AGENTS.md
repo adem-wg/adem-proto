@@ -19,6 +19,7 @@ In the following, I will briefly introduce ADEM and how it functions.
 # Repository
 
 - The programming language is Go.
+- Go requires explicit error handling. Whenever possible, use if-else patterns with variable assignments in the if condition.
 - The repository provides CLI-focussed tools. They should work nicely together using stdin/stdout. The code for individual commands is provided in `cmd` and its subdirectories.
 - Aim to reuse as much existing code as possible.
 - Always check whether you can reuse existing code before implementing new features.
