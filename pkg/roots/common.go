@@ -27,8 +27,8 @@ type CTQueryResult struct {
 // Transparency infrastructure for the given issuer.
 func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQueryResult {
 	verified := VerifyInclusionConfig(logs)
-	for i := range verified {
-		verified[i].Ok = VerifyBinding(verified[i], iss, key) == nil
+	for _, queryResult := range verified {
+		queryResult.Ok = VerifyBinding(queryResult, iss, key) == nil
 	}
 	return verified
 }
