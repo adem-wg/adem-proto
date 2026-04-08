@@ -174,7 +174,6 @@ func staticLogListJSON(logID string, publicKey any, monitoringDir string) []byte
 							"description":    "static log",
 							"log_id":         logID,
 							"key":            base64.StdEncoding.EncodeToString(pubDER),
-							"submission_url": "https://log.example/static/",
 							"monitoring_url": "file://" + monitoringDir,
 							"mmd":            0,
 						},
@@ -194,5 +193,6 @@ func staticLogListJSON(logID string, publicKey any, monitoringDir string) []byte
 func resetKnownLogs() {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
-	ctLogs = make(map[string]CTLog)
+	v1Logs = make(map[string]V1Log)
+	staticLogs = make(map[string]StaticLog)
 }

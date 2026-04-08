@@ -53,38 +53,40 @@ func (v *staticInclusionVerifier) VerifyInclusion(logConfig *tokens.LogConfig) (
 func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error) {
 	if logConfig == nil {
 		return nil, ErrNoLogConfig
-	} else if logInfo, err := GetLog(logConfig.Id); err != nil {
-		return nil, err
-	} else {
-		switch logConfig.Ver {
-		case consts.LogVersionV1:
-			if logConfig.Hash == nil {
-				return nil, ErrMissingLeafHash
-			} else if logURL := logInfo.v1URL(); logURL == "" {
-				return nil, ErrMissingV1URL
-			} else if client, err := ctclient.New(logURL, http.DefaultClient, jsonclient.Options{PublicKeyDER: logInfo.KeyDER}); err != nil {
-				return nil, err
-			} else {
-				return &v1InclusionVerifier{client: client}, nil
-			}
-		case consts.LogVersionStatic:
-			if logConfig.Index == nil {
-				return nil, ErrMissingLeafIndex
-			} else if monitoringURL := logInfo.staticMonitoringURL(); monitoringURL == "" {
-				return nil, ErrMissingStaticURL
-			} else if key, err := x509.ParsePKIXPublicKey(logInfo.KeyDER); err != nil {
-				return nil, err
-			} else if client, err := sunlight.NewClient(&sunlight.ClientConfig{
-				MonitoringPrefix: monitoringURL,
-				PublicKey:        key,
-				UserAgent:        staticCTUserAgent,
-			}); err != nil {
-				return nil, err
-			} else {
-				return &staticInclusionVerifier{client: client, monitoringURL: monitoringURL}, nil
-			}
-		default:
-			return nil, ErrIllegalLogVersion
+	}
+
+	switch logConfig.Ver {
+	case consts.LogVersionV1:
+		if logConfig.Hash == nil {
+			return nil, ErrMissingLeafHash
+		} else if logInfo, err := GetV1Log(logConfig.Id); err != nil {
+			return nil, err
+		} else if logInfo.URL == "" {
+			return nil, ErrMissingV1URL
+		} else if client, err := ctclient.New(logInfo.URL, http.DefaultClient, jsonclient.Options{PublicKeyDER: logInfo.KeyDER}); err != nil {
+			return nil, err
+		} else {
+			return &v1InclusionVerifier{client: client}, nil
 		}
+	case consts.LogVersionStatic:
+		if logConfig.Index == nil {
+			return nil, ErrMissingLeafIndex
+		} else if logInfo, err := GetStaticLog(logConfig.Id); err != nil {
+			return nil, err
+		} else if logInfo.MonitoringURL == "" {
+			return nil, ErrMissingStaticURL
+		} else if key, err := x509.ParsePKIXPublicKey(logInfo.KeyDER); err != nil {
+			return nil, err
+		} else if client, err := sunlight.NewClient(&sunlight.ClientConfig{
+			MonitoringPrefix: logInfo.MonitoringURL,
+			PublicKey:        key,
+			UserAgent:        staticCTUserAgent,
+		}); err != nil {
+			return nil, err
+		} else {
+			return &staticInclusionVerifier{client: client, monitoringURL: logInfo.MonitoringURL}, nil
+		}
+	default:
+		return nil, ErrIllegalLogVersion
 	}
 }

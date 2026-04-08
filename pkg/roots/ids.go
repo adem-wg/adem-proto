@@ -14,31 +14,18 @@ import (
 
 var ErrUnknownLog = errors.New("unknown log")
 
-type CTLog struct {
-	KeyDER           []byte
-	V1URL            string
-	StaticSubmission string
-	StaticMonitoring string
+type V1Log struct {
+	KeyDER []byte
+	URL    string
 }
 
-func (l CTLog) v1URL() string {
-	if l.V1URL != "" {
-		return l.V1URL
-	}
-	return l.StaticSubmission
+type StaticLog struct {
+	KeyDER        []byte
+	MonitoringURL string
 }
 
-func (l CTLog) staticMonitoringURL() string {
-	if l.StaticMonitoring != "" {
-		return l.StaticMonitoring
-	}
-	if l.StaticSubmission != "" {
-		return l.StaticSubmission
-	}
-	return l.V1URL
-}
-
-var ctLogs map[string]CTLog = make(map[string]CTLog)
+var v1Logs map[string]V1Log = make(map[string]V1Log)
+var staticLogs map[string]StaticLog = make(map[string]StaticLog)
 var logMapLock sync.Mutex = sync.Mutex{}
 
 func storeLogs(rawJSON []byte) error {
@@ -51,19 +38,18 @@ func storeLogs(rawJSON []byte) error {
 		for _, operator := range ll.Operators {
 			for _, l := range operator.Logs {
 				id := base64.StdEncoding.EncodeToString(l.LogID)
-				entry := ctLogs[id]
-				entry.KeyDER = append([]byte(nil), l.Key...)
-				entry.V1URL = l.URL
-				ctLogs[id] = entry
+				v1Logs[id] = V1Log{
+					KeyDER: append([]byte(nil), l.Key...),
+					URL:    l.URL,
+				}
 			}
 
 			for _, l := range operator.TiledLogs {
 				id := base64.StdEncoding.EncodeToString(l.LogID)
-				entry := ctLogs[id]
-				entry.KeyDER = append([]byte(nil), l.Key...)
-				entry.StaticSubmission = l.SubmissionURL
-				entry.StaticMonitoring = l.MonitoringURL
-				ctLogs[id] = entry
+				staticLogs[id] = StaticLog{
+					KeyDER:        append([]byte(nil), l.Key...),
+					MonitoringURL: l.MonitoringURL,
+				}
 			}
 		}
 
@@ -71,15 +57,26 @@ func storeLogs(rawJSON []byte) error {
 	}
 }
 
-func GetLog(id string) (CTLog, error) {
+func GetV1Log(id string) (V1Log, error) {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
 
-	log, ok := ctLogs[id]
-	if !ok {
-		return CTLog{}, ErrUnknownLog
+	if log, ok := v1Logs[id]; !ok {
+		return V1Log{}, ErrUnknownLog
+	} else {
+		return log, nil
 	}
-	return log, nil
+}
+
+func GetStaticLog(id string) (StaticLog, error) {
+	logMapLock.Lock()
+	defer logMapLock.Unlock()
+
+	if log, ok := staticLogs[id]; !ok {
+		return StaticLog{}, ErrUnknownLog
+	} else {
+		return log, nil
+	}
 }
 
 func fetchLogs(url string) error {
@@ -93,7 +90,6 @@ func fetchLogs(url string) error {
 		} else {
 			return storeLogs(body)
 		}
-
 	}
 }
 
