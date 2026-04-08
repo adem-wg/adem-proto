@@ -5,6 +5,7 @@ be used in /ct/v1/get-proof-by-hash queries; for Static CT SCTs it outputs the
 leaf index advertised in the SCT extension.
 
 [RFC 6962]: https://www.rfc-editor.org/rfc/rfc6962
+[Static CT]: https://github.com/C2SP/C2SP/blob/main/static-ct-api.md
 */
 package main
 
