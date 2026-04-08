@@ -8,7 +8,7 @@ import (
 	"filippo.io/sunlight"
 )
 
-func verifyStaticInclusion(cl *sunlight.Client, index uint64) ([]string, error) {
+func verifyStaticInclusion(cl *sunlight.Client, index int64) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Minute))
 	defer cancel()
 
@@ -17,7 +17,7 @@ func verifyStaticInclusion(cl *sunlight.Client, index uint64) ([]string, error) 
 		return nil, err
 	}
 
-	entry, _, err := cl.Entry(ctx, checkpoint.Tree, int64(index))
+	entry, _, err := cl.Entry(ctx, checkpoint.Tree, index)
 	if err != nil {
 		return nil, err
 	}

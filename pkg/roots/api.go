@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"filippo.io/sunlight"
+	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ctclient "github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/jsonclient"
@@ -46,7 +47,7 @@ func (v *staticInclusionVerifier) URL() string {
 }
 
 func (v *staticInclusionVerifier) VerifyInclusion(logConfig *tokens.LogConfig) ([]string, error) {
-	return verifyStaticInclusion(v.client, logConfig.Index.Value)
+	return verifyStaticInclusion(v.client, *logConfig.Index)
 }
 
 func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error) {
@@ -60,7 +61,7 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 	}
 
 	switch logConfig.Ver {
-	case tokens.LogVersionV1:
+	case consts.LogVersionV1:
 		if logConfig.Hash == nil {
 			return nil, ErrMissingLeafHash
 		}
@@ -75,7 +76,7 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 			return nil, err
 		}
 		return &v1InclusionVerifier{client: client}, nil
-	case tokens.LogVersionStatic:
+	case consts.LogVersionStatic:
 		if logConfig.Index == nil {
 			return nil, ErrMissingLeafIndex
 		}

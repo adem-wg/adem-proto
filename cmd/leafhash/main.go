@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"filippo.io/sunlight"
+	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/tls"
@@ -26,12 +27,9 @@ import (
 )
 
 var certPath string
-var preCertPath string
 
 func init() {
-	// TODO: Unify arguments
 	flag.StringVar(&certPath, "cert", "", "path to certificate or certificate chain; log type is detected automatically")
-	flag.StringVar(&preCertPath, "precert-fullchain", "", "legacy alias for -cert when passing a certificate chain")
 }
 
 func loadCerts(path string) ([]*x509.Certificate, error) {
@@ -57,31 +55,12 @@ func loadCerts(path string) ([]*x509.Certificate, error) {
 	}
 }
 
-type certType int
-
-const (
-	certTypeX509 certType = iota
-	certTypeEmbeddedSCT
-	certTypePrecertificate
-)
-
-func detectCertType(certChain []*x509.Certificate) certType {
-	switch {
-	case certChain[0].IsPrecertificate():
-		return certTypePrecertificate
-	case len(certChain[0].SCTList.SCTList) > 0:
-		return certTypeEmbeddedSCT
-	default:
-		return certTypeX509
-	}
-}
-
 func mkV1Cfg(logID []byte, leaf *ct.MerkleTreeLeaf) (*tokens.LogConfig, error) {
 	if hash, err := ct.LeafHashForLeaf(leaf); err != nil {
 		return nil, err
 	} else {
 		cfg := tokens.LogConfig{
-			Ver: tokens.LogVersionV1,
+			Ver: consts.LogVersionV1,
 			Id:  base64.StdEncoding.EncodeToString(logID),
 			Hash: &tokens.LeafHash{
 				B64: base64.StdEncoding.EncodeToString(hash[:]),
@@ -97,67 +76,59 @@ func mkStaticCfg(logID []byte, sct *ct.SignedCertificateTimestamp) (*tokens.LogC
 		return nil, err
 	}
 
-	index := tokens.LeafIndex{Value: uint64(ext.LeafIndex)}
 	return &tokens.LogConfig{
-		Ver:   tokens.LogVersionStatic,
+		Ver:   consts.LogVersionStatic,
 		Id:    base64.StdEncoding.EncodeToString(logID),
-		Index: &index,
+		Index: &ext.LeafIndex,
 	}, nil
 }
 
-func mkV1Leaf(certChain []*x509.Certificate, certType certType, timestamp uint64) (*ct.MerkleTreeLeaf, error) {
-	switch certType {
-	case certTypeEmbeddedSCT:
+func mkV1Leaf(certChain []*x509.Certificate, timestamp uint64) (*ct.MerkleTreeLeaf, error) {
+	// Embedded SCTs on a final certificate prove inclusion of the corresponding
+	// precertificate entry, so building the RFC 6962 leaf requires the issuer
+	// chain. Precertificates and plain X.509 certificates are identified directly
+	// from the parsed certificate and mapped to the matching entry type.
+	cert := certChain[0]
+	switch {
+	case cert.IsPrecertificate():
+		return ct.MerkleTreeLeafFromChain(certChain, ct.PrecertLogEntryType, timestamp)
+	case len(cert.SCTList.SCTList) > 0:
 		if len(certChain) < 2 {
 			return nil, errors.New("certificate with embedded SCTs requires issuer chain for CT v1 leaf hashes")
 		}
 		return ct.MerkleTreeLeafForEmbeddedSCT(certChain, timestamp)
-	case certTypePrecertificate:
-		return ct.MerkleTreeLeafFromChain(certChain, ct.PrecertLogEntryType, timestamp)
 	default:
 		return ct.MerkleTreeLeafFromChain(certChain, ct.X509LogEntryType, timestamp)
 	}
 }
 
-func mkCfg(certChain []*x509.Certificate, certType certType, sct *ct.SignedCertificateTimestamp) (*tokens.LogConfig, error) {
+func mkCfg(certChain []*x509.Certificate, sct *ct.SignedCertificateTimestamp) (*tokens.LogConfig, error) {
 	if len(sct.Extensions) > 0 {
 		return mkStaticCfg(sct.LogID.KeyID[:], sct)
-	}
-
-	leaf, err := mkV1Leaf(certChain, certType, sct.Timestamp)
-	if err != nil {
+	} else if leaf, err := mkV1Leaf(certChain, sct.Timestamp); err != nil {
 		return nil, err
+	} else {
+		return mkV1Cfg(sct.LogID.KeyID[:], leaf)
 	}
-	return mkV1Cfg(sct.LogID.KeyID[:], leaf)
 }
 
 func main() {
 	flag.Parse()
 
-	loadPreCert := preCertPath != ""
-	loadPath := certPath
-	if loadPreCert {
-		loadPath = preCertPath
-	}
-	if loadPath == "" {
+	if certPath == "" {
 		log.Fatal("no certificate provided")
 	}
 
-	if certChain, err := loadCerts(loadPath); err != nil {
+	if certChain, err := loadCerts(certPath); err != nil {
 		log.Fatalf("could not load certificates: %s", err)
 	} else {
-		// TODO: Detect `certType` in `mkV1Leaf` and remove the respective argument
-		// from `mkCfg` and `mkV1Leaf`. Also, do not encode the cert type in a
-		// const, but branch directly on the checks. Add comments that document this
-		// reasoning.
-		certType := detectCertType(certChain)
 		logs := []*tokens.LogConfig{}
 		for _, serializedSct := range certChain[0].SCTList.SCTList {
 			var sct ct.SignedCertificateTimestamp
 			if _, err := tls.Unmarshal(serializedSct.Val, &sct); err != nil {
 				log.Printf("could not deserialize the sct: %s", err)
 			} else {
-				if cfg, err := mkCfg(certChain, certType, &sct); err != nil {
+				if cfg, err := mkCfg(certChain, &sct); err != nil {
 					log.Printf("could not build log config: %s", err)
 				} else {
 					logs = append(logs, cfg)

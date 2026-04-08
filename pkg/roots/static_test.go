@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"filippo.io/sunlight"
+	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/tls"
@@ -69,9 +70,9 @@ func TestVerifyBindingCertsStatic(t *testing.T) {
 		t.Fatalf("could not store logs: %v", err)
 	}
 
-	index := tokens.LeafIndex{Value: 0}
+	var index int64 = 0
 	results := VerifyBindingCerts("https://"+issuerHost, rootJWK, []*tokens.LogConfig{{
-		Ver:   tokens.LogVersionStatic,
+		Ver:   consts.LogVersionStatic,
 		Id:    logID,
 		Index: &index,
 	}})

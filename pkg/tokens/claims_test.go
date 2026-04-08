@@ -68,35 +68,15 @@ func TestLeafHashJSON(t *testing.T) {
 	}
 }
 
-func TestLeafIndexJSON(t *testing.T) {
-	var i LeafIndex
-	if err := json.Unmarshal([]byte(`12345`), &i); err != nil {
-		t.Fatalf("expected unmarshal to succeed: %v", err)
-	}
-	if i.Value != 12345 {
-		t.Fatalf("unexpected leaf index value: %+v", i)
-	}
-	if bs, err := json.Marshal(&i); err != nil || string(bs) != `12345` {
-		t.Fatalf("unexpected marshal result %q (err=%v)", string(bs), err)
-	}
-}
-
-func TestLeafIndexOutOfRange(t *testing.T) {
-	var i LeafIndex
-	if err := json.Unmarshal([]byte(`1099511627776`), &i); err == nil {
-		t.Fatalf("expected out-of-range value to fail")
-	}
-}
-
 func TestStaticLogConfigJSON(t *testing.T) {
 	var cfg LogConfig
 	if err := json.Unmarshal([]byte(`{"ver":"static","id":"abc","index":42}`), &cfg); err != nil {
 		t.Fatalf("expected unmarshal to succeed: %v", err)
 	}
-	if cfg.Ver != LogVersionStatic || cfg.Id != "abc" {
+	if cfg.Ver != consts.LogVersionStatic || cfg.Id != "abc" {
 		t.Fatalf("unexpected log config: %+v", cfg)
 	}
-	if cfg.Index == nil || cfg.Index.Value != 42 {
+	if cfg.Index == nil || *cfg.Index != 42 {
 		t.Fatalf("unexpected static index: %+v", cfg.Index)
 	}
 	if cfg.Hash != nil {
