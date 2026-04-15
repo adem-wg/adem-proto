@@ -1,4 +1,5 @@
 *.log
+/.cache
 /inputs
 /cmd/test
 /cmd/**/__debug_bin
