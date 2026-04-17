@@ -84,20 +84,10 @@ func mkStaticCfg(logID []byte, sct *ct.SignedCertificateTimestamp) (*tokens.LogC
 }
 
 func mkV1Leaf(certChain []*x509.Certificate, timestamp uint64) (*ct.MerkleTreeLeaf, error) {
-	// Embedded SCTs on a final certificate prove inclusion of the corresponding
-	// precertificate entry, so building the RFC 6962 leaf requires the issuer
-	// chain. Precertificates and plain X.509 certificates are identified directly
-	// from the parsed certificate and mapped to the matching entry type.
 	cert := certChain[0]
-	switch {
-	case cert.IsPrecertificate():
-		return ct.MerkleTreeLeafFromChain(certChain, ct.PrecertLogEntryType, timestamp)
-	case len(cert.SCTList.SCTList) > 0:
-		if len(certChain) < 2 {
-			return nil, errors.New("certificate with embedded SCTs requires issuer chain for CT v1 leaf hashes")
-		}
+	if len(cert.SCTList.SCTList) > 0 {
 		return ct.MerkleTreeLeafForEmbeddedSCT(certChain, timestamp)
-	default:
+	} else {
 		return ct.MerkleTreeLeafFromChain(certChain, ct.X509LogEntryType, timestamp)
 	}
 }
