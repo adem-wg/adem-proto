@@ -18,6 +18,7 @@ var ErrMissingLeafIndex = errors.New("missing leaf index")
 var ErrMissingV1URL = errors.New("missing CT v1 URL")
 var ErrMissingStaticURL = errors.New("missing Static CT monitoring URL")
 
+// TODO: Change user agent string
 const staticCTUserAgent = "adem-proto (+https://github.com/adem-wg/adem-proto)"
 
 type InclusionVerifier interface {

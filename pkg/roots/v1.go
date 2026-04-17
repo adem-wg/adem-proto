@@ -1,6 +1,6 @@
 /*
 This file implements the checking of root key commitments for the Certificate
-Transparency API in v1 and the binding checks shared across CT APIs.
+Transparency API in v1.
 */
 package roots
 
