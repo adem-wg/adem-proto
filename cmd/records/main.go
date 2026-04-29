@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -16,12 +17,23 @@ import (
 
 func init() {
 	args.AddPublicKeyAlgArgs()
+	flag.BoolVar(&quoted, "quoted", false, "quote each output line as DNS TXT record contents")
+}
+
+var quoted bool
+
+func printLn(format string, ins ...any) {
+	s := fmt.Sprintf(format, ins...)
+	if quoted {
+		s = strconv.Quote(s)
+	}
+	fmt.Println(s)
 }
 
 func printTokens(path string) {
 	fp, err := os.Open(path)
 	if err != nil {
-		log.Printf("could not read file: %s", err)
+		log.Fatalf("could not read file: %s", err)
 	}
 	defer fp.Close()
 
@@ -29,7 +41,7 @@ func printTokens(path string) {
 	for scanner.Scan() {
 		token := scanner.Text()
 		if token != "" {
-			fmt.Printf("adem-token=%s\n", token)
+			printLn("adem-token=%s", token)
 		}
 	}
 }
@@ -56,7 +68,7 @@ func printKeys(keys jwk.Set, alg jwa.SignatureAlgorithm, setAlg bool) {
 				log.Printf("could not encode key: %s", err)
 				continue
 			} else {
-				fmt.Printf("adem-key=%s\n", bJwk)
+				printLn("adem-key=%s", bJwk)
 			}
 		}
 	}
