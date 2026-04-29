@@ -4,4 +4,4 @@ if [ ! -f private_emb.pem ]; then
 fi
 
 go run github.com/adem-wg/adem-proto/cmd/emblemgen \
-  -skey private_emb.pem -alg ES512 -proto emblem.json > emblem.jws
+  -skey private_emb.pem -alg ES512 -key-fmt jwk -proto emblem.json > emblem.jws
