@@ -16,19 +16,19 @@ type TokenVerifier struct {
 }
 
 type TokenSet struct {
-	verified      map[string]bool
-	dependencies  map[string][]TokenVerifier
-	untrustedKeys jwk.Set
-	roots         []ADEMToken
-	results       []ADEMToken
-	errors        []error
+	verified     map[string]bool
+	dependencies map[string][]TokenVerifier
+	keyMaterial  jwk.Set
+	roots        []ADEMToken
+	results      []ADEMToken
+	errors       []error
 }
 
-func NewTokenSet(untrustedKeys jwk.Set) TokenSet {
+func NewTokenSet(keyMaterial jwk.Set) TokenSet {
 	var th TokenSet
 	th.verified = make(map[string]bool)
 	th.dependencies = make(map[string][]TokenVerifier)
-	th.untrustedKeys = untrustedKeys
+	th.keyMaterial = keyMaterial
 	th.roots = make([]ADEMToken, 0)
 	th.results = make([]ADEMToken, 0)
 	th.errors = make([]error, 0)
@@ -44,7 +44,7 @@ func (th *TokenSet) AddToken(rawToken []byte) error {
 		headers := msg.Signatures()[0].ProtectedHeaders()
 		var verificationKey jwk.Key
 		if headerKid, ok := headers.KeyID(); ok {
-			if kidKey, ok := th.untrustedKeys.LookupKeyID(headerKid); ok {
+			if kidKey, ok := th.keyMaterial.LookupKeyID(headerKid); ok {
 				verificationKey = kidKey
 			} else {
 				return ErrNoKeyFound

@@ -121,6 +121,8 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 
 	tokensNoKeys, untrustedKeys := filterKeys(rawTokens)
+	tokens.AddSet(untrustedKeys, trustedKeys)
+
 	th := NewTokenSet(untrustedKeys)
 	for _, rawToken := range tokensNoKeys {
 		if err := th.AddToken(rawToken); err != nil {

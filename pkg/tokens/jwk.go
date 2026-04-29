@@ -8,6 +8,7 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -126,5 +127,19 @@ func SignatureAlgForKey(key any) (jwa.SignatureAlgorithm, error) {
 		}
 	default:
 		return jwa.NoSignature(), ErrUnsupportedKey
+	}
+}
+
+func AddSet(keys jwk.Set, source jwk.Set) {
+	if source == nil {
+		return
+	}
+
+	for i := range source.Len() {
+		if k, ok := source.Key(i); !ok {
+			log.Printf("could not access key material at index %d", i)
+		} else {
+			keys.AddKey(k)
+		}
 	}
 }
