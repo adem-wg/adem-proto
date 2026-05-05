@@ -62,6 +62,6 @@ func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, 
 		}
 		return results, issuers
 	} else {
-		return []VerificationResult{INVALID}, nil
+		return []VerificationResult{}, nil
 	}
 }
