@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
@@ -147,7 +148,6 @@ func (h *LeafHash) MarshalJSON() ([]byte, error) {
 }
 
 var ErrIllegalVersion = errors.New("illegal version")
-var ErrIllegalType = errors.New("illegal claim type")
 var ErrAssets = errors.New("emblems require non-empty assets claim")
 var ErrLogClaim = errors.New("emblems must not contain a log claim")
 var ErrEndMissing = errors.New("endorsements require end claim")
@@ -180,10 +180,8 @@ var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token
 
 	var end bool
 	err := t.Get("end", &end)
-	if err == nil {
-		if !end {
-			return ErrIllegalType
-		}
+	if err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
+		return fmt.Errorf("missing claim \"end\"")
 	}
 
 	return nil

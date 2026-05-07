@@ -3,8 +3,10 @@ package tokens
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 func TestPurposeMaskJSONRoundtrip(t *testing.T) {
@@ -90,5 +92,41 @@ func TestValidateOI(t *testing.T) {
 		t.Fatalf("expected invalid scheme to fail validation")
 	} else if err := validateOI("https://example.com/path"); err == nil {
 		t.Fatalf("expected path to make OI invalid")
+	}
+}
+
+func TestEndorsementValidatorAcceptsFalseEndClaim(t *testing.T) {
+	token := jwt.New()
+	now := time.Now()
+	mustSetClaim(t, token, "ver", string(consts.V1))
+	mustSetClaim(t, token, "iat", now)
+	mustSetClaim(t, token, "nbf", now.Add(-time.Minute))
+	mustSetClaim(t, token, "exp", now.Add(time.Hour))
+	mustSetClaim(t, token, "end", false)
+
+	if err := jwt.Validate(token, jwt.WithValidator(EndorsementValidator)); err != nil {
+		t.Fatalf("expected end=false to validate as a legal boolean claim, got %v", err)
+	}
+}
+
+func TestEndorsementValidatorReportsIllegalEndClaim(t *testing.T) {
+	token := jwt.New()
+	now := time.Now()
+	mustSetClaim(t, token, "ver", string(consts.V1))
+	mustSetClaim(t, token, "iat", now)
+	mustSetClaim(t, token, "nbf", now.Add(-time.Minute))
+	mustSetClaim(t, token, "exp", now.Add(time.Hour))
+	mustSetClaim(t, token, "end", "false")
+
+	err := jwt.Validate(token, jwt.WithValidator(EndorsementValidator))
+	if err == nil {
+		t.Fatalf("expected illegal claim type error, got %v", err)
+	}
+}
+
+func mustSetClaim(t *testing.T, token jwt.Token, name string, value any) {
+	t.Helper()
+	if err := token.Set(name, value); err != nil {
+		t.Fatalf("could not set %s claim: %v", name, err)
 	}
 }
