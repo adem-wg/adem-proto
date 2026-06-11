@@ -1,12 +1,10 @@
 package vfy
 
 import (
-	"errors"
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, *ADEMToken) {
@@ -15,14 +13,9 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 	for _, endorsement := range endorsements {
 		var end bool
 		if err := endorsement.Token.Get("end", &end); err != nil {
-			if errors.Is(err, jwt.ClaimNotFoundError()) {
-				end = false
-			} else {
-				log.Printf("could not access end claim: %s\n", err)
-			}
-		}
-
-		if endorsedKid, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
+			log.Printf("could not access end claim: %s\n", err)
+			continue
+		} else if endorsedKid, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
 			log.Printf("could not get endorsed kid: %s\n", err)
 			continue
 		} else if endIss, _ := endorsement.Token.Issuer(); embIss != endIss {
