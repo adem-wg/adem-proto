@@ -49,6 +49,6 @@ func verifyV1Inclusion(cl *client.LogClient, hash []byte) ([]string, error) {
 			log.Print("could not parse certificate")
 			return nil, ErrWrongEntryType
 		}
-		return append(cert.DNSNames, cert.Subject.CommonName), nil
+		return cert.DNSNames, nil
 	}
 }

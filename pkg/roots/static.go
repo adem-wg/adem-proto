@@ -25,7 +25,7 @@ func verifyStaticInclusion(cl *sunlight.Client, index int64) ([]string, error) {
 		if cert, err := x509.ParseCertificate(rawCert); err != nil {
 			return nil, err
 		} else {
-			return append(cert.DNSNames, cert.Subject.CommonName), nil
+			return cert.DNSNames, nil
 		}
 	}
 }
