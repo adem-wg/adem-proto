@@ -16,6 +16,18 @@ In the following, I will briefly introduce ADEM and how it functions.
 - It can happen that specification and implementation are out-of-sync. In general, assume that this is an error. Do not fix this error unless explicitly requested. If the error is non-blocking, only mention it in your summary. If the error is blocking, abort and ask how to proceed.
   - It can happen that you will be asked to implement a change not yet present in the specification, e.g., to test it before adjusting the specification accordingly. The prompt should make this explicit. In such cases, proceed to implement changes that are not described in the specification.
 
+# Intentional Extensions to the Core Draft
+
+- The `*-TRUSTED` and `*-UNTRUSTED` validation results are an intentional implementation feature beyond the core draft. Preserve them when synchronizing with the draft; their absence from the draft is not an implementation inconsistency.
+- Explicitly configured trusted public keys (`-trusted-pk` and the verification API's trusted-key set) establish local trust. Public keys discovered in token records provide verification material only; they do not establish trust. Always compute key identifiers from key material.
+- `SIGNED-TRUSTED` requires a trusted verification key in the valid internal chain (including the emblem itself). `ORGANIZATIONAL-TRUSTED` requires the organization's root verification key to be trusted. `ENDORSED-TRUSTED` requires a valid external endorsement signed by a trusted authority key. All other validation requirements, including applicable CT commitments, still apply.
+- Return the strongest trusted result and, if strictly stronger, the strongest untrusted result. If no trusted result exists, return the strongest untrusted result; validation failure remains `INVALID`.
+
+# Token and Key Implementation
+
+- Use `veraison/go-cose` keys, algorithms, and native CWT claims, with `fxamacker/cbor` for payload encoding. Do not reintroduce JWT/JWK intermediaries or the `lestrrat-go/jwx` dependency.
+- Local key files use PEM; JWK input support has been removed. JSON claim prototypes are a local input format only. Keep key thumbprints as byte strings in CWT claims and use integer labels for registered claims.
+
 # Repository
 
 - The programming language is Go.

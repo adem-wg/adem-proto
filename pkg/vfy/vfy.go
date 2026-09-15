@@ -9,8 +9,6 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var ErrNoKeyFound = errors.New("no key found")
@@ -30,6 +28,10 @@ type VerificationResults struct {
 
 func ResultInvalid() VerificationResults {
 	return VerificationResults{results: []VerificationResult{INVALID}}
+}
+
+func (res VerificationResults) Valid() bool {
+	return len(res.results) > 0 && !util.Contains(res.results, INVALID)
 }
 
 func (res VerificationResults) Print() {
@@ -59,45 +61,40 @@ type VerificationResult byte
 
 func (vr VerificationResult) String() string {
 	switch vr {
-	case UNSIGNED:
-		return "UNSIGNED"
 	case INVALID:
 		return "INVALID"
 	case SIGNED:
-		return "SIGNED"
+		return "SIGNED-UNTRUSTED"
 	case ORGANIZATIONAL:
-		return "ORGANIZATIONAL"
+		return "ORGANIZATIONAL-UNTRUSTED"
 	case ENDORSED:
-		return "ENDORSED"
+		return "ENDORSED-UNTRUSTED"
 	case SIGNED_TRUSTED:
-		return "SIGNED_TRUSTED"
+		return "SIGNED-TRUSTED"
 	case ORGANIZATIONAL_TRUSTED:
-		return "ORGANIZATIONAL_TRUSTED"
+		return "ORGANIZATIONAL-TRUSTED"
 	case ENDORSED_TRUSTED:
-		return "ENDORSED_TRUSTED"
+		return "ENDORSED-TRUSTED"
 	default:
 		return ""
 	}
 }
 
-const UNSIGNED VerificationResult = 0
 const INVALID VerificationResult = 1
 const SIGNED VerificationResult = 2
-const ORGANIZATIONAL VerificationResult = 3
-const ENDORSED VerificationResult = 4
-const SIGNED_TRUSTED VerificationResult = 5
-const ORGANIZATIONAL_TRUSTED VerificationResult = 6
+const ORGANIZATIONAL VerificationResult = 4
+const ENDORSED VerificationResult = 6
+const SIGNED_TRUSTED VerificationResult = 3
+const ORGANIZATIONAL_TRUSTED VerificationResult = 5
 const ENDORSED_TRUSTED VerificationResult = 7
 
-func filterKeys(rawTokens [][]byte) ([][]byte, jwk.Set) {
+func filterKeys(rawTokens [][]byte) ([][]byte, tokens.KeySet) {
 	remaining := make([][]byte, 0)
-	keys := jwk.NewSet()
+	keys := tokens.NewKeySet()
 	for _, t := range rawTokens {
-		if key, err := jwk.ParseKey(t); err == nil {
-			if _, err := tokens.SetKID(key, true); err != nil {
+		if key, err := tokens.DecodePublicCOSEKey(t); err == nil {
+			if err := keys.AddKey(key); err != nil {
 				log.Printf("could not compute kid: %s", err)
-			} else {
-				keys.AddKey(key)
 			}
 		} else {
 			remaining = append(remaining, t)
@@ -108,7 +105,11 @@ func filterKeys(rawTokens [][]byte) ([][]byte, jwk.Set) {
 }
 
 // Verify a slice of ADEM tokens.
-func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
+func VerifyTokens(rawTokens [][]byte, trustedKeys tokens.KeySet) VerificationResults {
+	return VerifyTokensWithCT(rawTokens, trustedKeys, true)
+}
+
+func VerifyTokensWithCT(rawTokens [][]byte, trustedKeys tokens.KeySet, allowCT bool) VerificationResults {
 
 	// Early termination for empty rawTokens slice
 	if len(rawTokens) == 0 {
@@ -117,13 +118,21 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 
 	// Ensure trustedKeys is non-nil
 	if trustedKeys == nil {
-		trustedKeys = jwk.NewSet()
+		trustedKeys = tokens.NewKeySet()
 	}
 
-	tokensNoKeys, untrustedKeys := filterKeys(rawTokens)
-	tokens.AddSet(untrustedKeys, trustedKeys)
+	normalized, err := tokens.NormalizeKeys(trustedKeys)
+	if err != nil {
+		return ResultInvalid()
+	}
+	trustedKeys = normalized
+	tokensNoKeys, recordKeys := filterKeys(rawTokens)
+	for kid, key := range trustedKeys {
+		recordKeys[kid] = key
+	}
 
-	th := NewTokenSet(untrustedKeys)
+	th := NewTokenSet(recordKeys)
+	th.DisableCT = !allowCT
 	for _, rawToken := range tokensNoKeys {
 		if err := th.AddToken(rawToken); err != nil {
 			log.Printf("could not verify token: %s\n", err)
@@ -140,19 +149,17 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 
 	var emblem *ADEMToken
-	var protected tokens.Assets // TODO: fix missing assignment
+	var protected tokens.Assets
 	endorsements := []ADEMToken{}
 	for _, t := range verifiedTokens {
 		if t.IsEndorsement {
 			endorsements = append(endorsements, t)
 		} else if emblem == nil {
 			emblem = &t
-			if err := emblem.Token.Get("assets", &protected); err != nil {
-				if errors.Is(err, jwt.ClaimNotFoundError()) {
-					log.Printf("No assets claim")
-				} else {
-					log.Printf("Could not access assets claim: %s", err)
-				}
+			var err error
+			protected, err = emblem.Token.Assets()
+			if err != nil {
+				log.Print(err)
 				return ResultInvalid()
 			}
 		} else {
@@ -180,14 +187,35 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 
 	if util.Contains(endorsedResults, INVALID) {
-		return ResultInvalid()
+		endorsedResults = nil
+		endorsedBy = nil
 	}
 
 	iss, _ := root.Token.Issuer()
 	return VerificationResults{
-		results:    append(vfyResults, endorsedResults...),
+		results:    strongest(append(vfyResults, endorsedResults...)),
 		issuer:     iss,
 		endorsedBy: endorsedBy,
 		protected:  protected,
 	}
+}
+
+// Return the strongest trusted result and any strictly stronger untrusted result.
+func strongest(results []VerificationResult) []VerificationResult {
+	var trusted, untrusted VerificationResult
+	for _, r := range results {
+		if r == SIGNED_TRUSTED || r == ORGANIZATIONAL_TRUSTED || r == ENDORSED_TRUSTED {
+			trusted = max(trusted, r)
+		} else {
+			untrusted = max(untrusted, r)
+		}
+	}
+	var out []VerificationResult
+	if trusted != 0 {
+		out = append(out, trusted)
+	}
+	if untrusted > trusted {
+		out = append(out, untrusted)
+	}
+	return out
 }

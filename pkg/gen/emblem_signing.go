@@ -1,22 +1,20 @@
 package gen
 
 import (
-	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/veraison/go-cose"
 )
 
-func (cfg *EmblemConfig) SignToken() (jwt.Token, []byte, error) {
-	return SignEmblem(cfg.sk, cfg.headerKeyJwk, cfg.alg, cfg.proto, cfg.lifetime)
+func (cfg *EmblemConfig) SignToken() (*tokens.Claims, []byte, error) {
+	return SignEmblem(cfg.sk, cfg.alg, cfg.proto, cfg.lifetime)
 }
 
-func SignEmblem(secretKey jwk.Key, headerKeyJwk bool, alg jwa.SignatureAlgorithm, token jwt.Token, lifetime int64) (jwt.Token, []byte, error) {
+func SignEmblem(secretKey *cose.Key, alg cose.Algorithm, token *tokens.Claims, lifetime int64) (*tokens.Claims, []byte, error) {
 	if err := prepToken(token, lifetime); err != nil {
 		return nil, nil, err
 	}
 
-	compact, err := signWithHeaders(token, consts.EmblemCty, alg, secretKey, headerKeyJwk)
+	compact, err := signWithHeaders(token, false, alg, secretKey)
 	if err != nil {
 		return nil, nil, err
 	}

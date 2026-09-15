@@ -1,16 +1,10 @@
-/*
-This tool will read a number of newline seperated tokens in JWS compact
-serialization (see [RFC 7515]) and attempt to verify them as ADEM tokens.
-
-[RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515
-*/
+// emblemcheck verifies line-separated hexadecimal CWTs, including untrusted COSE public keys.
 package main
 
 import (
-	"bufio"
 	"flag"
-	"io"
 	"log"
+	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
@@ -28,27 +22,17 @@ func loadTokensLocal() ([][]byte, error) {
 	if file != nil {
 		defer file.Close()
 	}
-	reader := bufio.NewReader(file)
-	lines := [][]byte{}
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		} else {
-			lines = append(lines, line)
-		}
-	}
-	return lines, nil
+	return tokens.ReadText(file)
 }
 
 func main() {
+	offline := flag.Bool("offline", false, "disable CT network lookups; verify using local keys")
 	flag.Parse()
-	if err := args.FetchKnownLogs(); err != nil {
-		log.Fatalf("could not fetch known logs: %s", err)
+	if !*offline {
+		if err := args.FetchKnownLogs(); err != nil {
+			log.Fatalf("could not fetch known logs: %s", err)
+		}
 	}
-
 	ts, err := loadTokensLocal()
 	if err != nil {
 		log.Fatal(err)
@@ -56,10 +40,14 @@ func main() {
 
 	trustedKeys := args.LoadTrustedKeys()
 	if trustedKeys.Len() > 0 {
-		if trustedKeys, err = tokens.SetKIDs(trustedKeys, args.LoadTrustedKeysAlg()); err != nil {
+		if trustedKeys, err = tokens.SetAlgorithms(trustedKeys, args.LoadTrustedKeysAlg()); err != nil {
 			log.Fatalf("could not set trusted keys KIDs: %s", err)
 		}
 	}
 
-	vfy.VerifyTokens(ts, trustedKeys).Print()
+	result := vfy.VerifyTokensWithCT(ts, trustedKeys, !*offline)
+	result.Print()
+	if !result.Valid() {
+		os.Exit(1)
+	}
 }

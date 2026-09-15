@@ -1,1 +1,5 @@
-cat ./*.jws | go run github.com/adem-wg/adem-proto/cmd/emblemcheck -trusted-pk ./auth.felixlinker.de.pub.pem -trusted-pk-alg ES512
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/../local"
+exec go run ../../cmd/emblemcheck -offline -tokens tmp/records.hex \
+  -trusted-pk tmp/authority.pub.pem -trusted-pk-alg ES256

@@ -32,7 +32,7 @@ func main() {
 
 	if pk := args.LoadPublicKey(); pk == nil {
 		log.Fatal("no public key to verify")
-	} else if err := pk.Set("alg", args.LoadPKAlg()); err != nil {
+	} else if pk, err := tokens.WithAlgorithm(pk, args.LoadPKAlg()); err != nil {
 		log.Fatalf("could not set public key algorithm: %s", err)
 	} else if OI == "" {
 		log.Fatal("no issuer given")

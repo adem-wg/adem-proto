@@ -3,18 +3,15 @@ package roots
 import (
 	"crypto/x509"
 	"errors"
+	"math"
 	"net/http"
 
 	"filippo.io/sunlight"
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ctclient "github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/jsonclient"
 )
 
-var ErrIllegalLogVersion = errors.New("illegal log version")
-var ErrMissingLeafHash = errors.New("missing leaf hash")
-var ErrMissingLeafIndex = errors.New("missing leaf index")
 var ErrMissingV1URL = errors.New("missing CT v1 URL")
 var ErrMissingStaticURL = errors.New("missing Static CT monitoring URL")
 
@@ -48,7 +45,10 @@ func (v *staticInclusionVerifier) URL() string {
 }
 
 func (v *staticInclusionVerifier) VerifyInclusion(logConfig *tokens.LogConfig) ([]string, error) {
-	return verifyStaticInclusion(v.client, *logConfig.Index)
+	if *logConfig.Index > math.MaxInt64 {
+		return nil, errors.New("log index exceeds supported tree size")
+	}
+	return verifyStaticInclusion(v.client, int64(*logConfig.Index))
 }
 
 func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error) {
@@ -56,11 +56,11 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 		return nil, ErrNoLogConfig
 	}
 
-	switch logConfig.Ver {
-	case consts.LogVersionV1:
-		if logConfig.Hash == nil {
-			return nil, ErrMissingLeafHash
-		} else if logInfo, err := GetV1Log(logConfig.Id); err != nil {
+	if err := logConfig.Validate(); err != nil {
+		return nil, err
+	}
+	if logConfig.Hash != nil {
+		if logInfo, err := GetV1Log(logConfig.Id); err != nil {
 			return nil, err
 		} else if logInfo.URL == "" {
 			return nil, ErrMissingV1URL
@@ -69,10 +69,8 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 		} else {
 			return &v1InclusionVerifier{client: client}, nil
 		}
-	case consts.LogVersionStatic:
-		if logConfig.Index == nil {
-			return nil, ErrMissingLeafIndex
-		} else if logInfo, err := GetStaticLog(logConfig.Id); err != nil {
+	} else {
+		if logInfo, err := GetStaticLog(logConfig.Id); err != nil {
 			return nil, err
 		} else if logInfo.MonitoringURL == "" {
 			return nil, ErrMissingStaticURL
@@ -87,7 +85,5 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 		} else {
 			return &staticInclusionVerifier{client: client, monitoringURL: logInfo.MonitoringURL}, nil
 		}
-	default:
-		return nil, ErrIllegalLogVersion
 	}
 }

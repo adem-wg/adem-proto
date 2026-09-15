@@ -2,29 +2,19 @@ package tokens
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"net"
 	"net/url"
+	"strings"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 type Log = []*LogConfig
 type Assets = []*ident.AI
-
-// Register JWT fields of emblems for easier parsing.
-func init() {
-	jwt.RegisterCustomField("log", Log{})
-	jwt.RegisterCustomField("key", "")
-	jwt.RegisterCustomField("assets", Assets{})
-	jwt.RegisterCustomField("emb", EmblemConstraints{})
-	jwt.RegisterCustomField("ver", "")
-}
 
 var ErrIllegalConst = errors.New("json element is illegal constant")
 
@@ -32,6 +22,9 @@ type PurposeMask byte
 
 const Protective PurposeMask = 0b0000_0001
 const Indicative PurposeMask = 0b0000_0010
+const DangerousForces PurposeMask = 4
+const CivilDefense PurposeMask = 8
+const BlueShield PurposeMask = 16
 
 func (pm *PurposeMask) UnmarshalJSON(in []byte) error {
 	var prps []string
@@ -45,6 +38,12 @@ func (pm *PurposeMask) UnmarshalJSON(in []byte) error {
 				mask |= Protective
 			case consts.Indicative:
 				mask |= Indicative
+			case "dangerous-forces":
+				mask |= DangerousForces
+			case "civil-defense":
+				mask |= CivilDefense
+			case "blue-shield":
+				mask |= BlueShield
 			default:
 				return ErrIllegalConst
 			}
@@ -55,12 +54,21 @@ func (pm *PurposeMask) UnmarshalJSON(in []byte) error {
 }
 
 func (pm *PurposeMask) MarshalJSON() ([]byte, error) {
-	var purposes []string
+	purposes := []string{}
 	if *pm&Protective != 0 {
 		purposes = append(purposes, consts.Protective)
 	}
 	if *pm&Indicative != 0 {
 		purposes = append(purposes, consts.Indicative)
+	}
+	if *pm&DangerousForces != 0 {
+		purposes = append(purposes, "dangerous-forces")
+	}
+	if *pm&CivilDefense != 0 {
+		purposes = append(purposes, "civil-defense")
+	}
+	if *pm&BlueShield != 0 {
+		purposes = append(purposes, "blue-shield")
 	}
 	return json.Marshal(purposes)
 }
@@ -81,10 +89,6 @@ func (cm *ChannelMask) UnmarshalJSON(bs []byte) error {
 			switch dst {
 			case consts.DNS:
 				mask |= DNS
-			case consts.TLS:
-				mask |= TLS
-			case consts.UDP:
-				mask |= UDP
 			default:
 				return ErrIllegalConst
 			}
@@ -95,7 +99,7 @@ func (cm *ChannelMask) UnmarshalJSON(bs []byte) error {
 }
 
 func (cm *ChannelMask) MarshalJSON() ([]byte, error) {
-	var dsts []string
+	dsts := []string{}
 	if *cm&DNS != 0 {
 		dsts = append(dsts, consts.DNS)
 	}
@@ -115,12 +119,55 @@ type EmblemConstraints struct {
 	Window       *int         `json:"wnd,omitempty"`
 }
 
+func (c *EmblemConstraints) UnmarshalJSON(raw []byte) error {
+	type plain EmblemConstraints
+	var decoded plain
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	*c = EmblemConstraints(decoded)
+	return nil
+}
+
+// MarshalJSON preserves an explicitly empty asset constraint, which permits
+// no assets and is different from an absent (unrestricted) constraint.
+func (c EmblemConstraints) MarshalJSON() ([]byte, error) {
+	fields := map[string]any{}
+	if c.Purpose != nil {
+		fields["prp"] = c.Purpose
+	}
+	if c.Distribution != nil {
+		fields["dst"] = c.Distribution
+	}
+	if c.Assets != nil {
+		fields["assets"] = c.Assets
+	}
+	if c.Window != nil {
+		fields["wnd"] = c.Window
+	}
+	return json.Marshal(fields)
+}
+
 // Struct that represents an identifying log binding.
 type LogConfig struct {
-	Ver   string    `json:"ver"`
 	Id    string    `json:"id"`
 	Hash  *LeafHash `json:"hash,omitempty"`
-	Index *int64    `json:"index,omitempty"`
+	Index *uint64   `json:"index,omitempty"`
+}
+
+// Reject obsolete log fields instead of silently producing different metadata.
+func (cfg *LogConfig) UnmarshalJSON(raw []byte) error {
+	type plain LogConfig
+	var decoded plain
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	*cfg = LogConfig(decoded)
+	return cfg.Validate()
 }
 
 // Wrapper type for easier JSON unmarshalling of base64-encoded JSON strings of
@@ -152,41 +199,6 @@ var ErrAssets = errors.New("emblems require non-empty assets claim")
 var ErrLogClaim = errors.New("emblems must not contain a log claim")
 var ErrEndMissing = errors.New("endorsements require end claim")
 
-// Validation function for emblem tokens.
-var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) error {
-	if err := validateCommon(t); err != nil {
-		return err
-	}
-
-	var assets Assets
-	if err := t.Get("assets", &assets); err != nil {
-		return ErrAssets
-	} else if len(assets) == 0 {
-		return ErrAssets
-	}
-
-	if t.Has("log") {
-		return ErrLogClaim
-	}
-
-	return nil
-})
-
-// Validation function for endorsement tokens.
-var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) error {
-	if err := validateCommon(t); err != nil {
-		return err
-	}
-
-	var end bool
-	err := t.Get("end", &end)
-	if err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
-		return fmt.Errorf("missing claim \"end\"")
-	}
-
-	return nil
-})
-
 // Validate that an OI has the form https://DOMAINNAME.
 func validateOI(oi string) error {
 	if oi == "" {
@@ -197,26 +209,22 @@ func validateOI(oi string) error {
 	if err != nil {
 		return errors.New("could not parse OI")
 	}
-	if url.Scheme != "https" || url.Host == "" || url.Opaque != "" || url.User != nil || url.Path != "" || url.RawQuery != "" || url.RawFragment != "" {
+	if url.Scheme != "https" || url.Host == "" || url.Host != strings.ToLower(url.Host) || url.Port() != "" || url.Opaque != "" || url.User != nil || url.Path != "" || url.RawQuery != "" || url.RawFragment != "" || url.Fragment != "" || oi != "https://"+url.Host || net.ParseIP(url.Hostname()) != nil {
 		return errors.New("illegal OI")
 	}
-	return nil
-}
-
-// Validate claims shared by emblems and endorsements.
-func validateCommon(t jwt.Token) error {
-	if err := jwt.Validate(t); err != nil {
-		return err
+	host := strings.TrimSuffix(url.Host, ".")
+	if len(host) > 253 {
+		return errors.New("illegal OI hostname")
 	}
-
-	var ver string
-	if err := t.Get("ver", &ver); err != nil || ver != string(consts.V1) {
-		return ErrIllegalVersion
+	for _, label := range strings.Split(host, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return errors.New("illegal OI hostname")
+		}
+		for _, ch := range label {
+			if !(ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9' || ch == '-') {
+				return errors.New("illegal OI hostname")
+			}
+		}
 	}
-
-	if iss, ok := t.Issuer(); ok && validateOI(iss) != nil {
-		return jwt.InvalidIssuerError()
-	}
-
 	return nil
 }

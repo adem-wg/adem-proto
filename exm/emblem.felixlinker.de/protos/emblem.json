@@ -2,11 +2,7 @@
   "assets": [
     "[2a01:4f9:c010:d8e4::1]"
   ],
-  "emb": {
-    "prp": [
-      "protective"
-    ]
-  },
   "iss": "https://emblem.felixlinker.de",
-  "ver": "v1"
+  "ver": 1,
+  "prp": 1
 }

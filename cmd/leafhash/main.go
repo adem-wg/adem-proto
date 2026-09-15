@@ -1,6 +1,6 @@
 /*
 This tool converts a certificate's embedded SCTs into log configs for the
-"log" claim of endorsements. For RFC 6962 SCTs it outputs leaf hashes that can
+"log" protected header of endorsements. For RFC 6962 SCTs it outputs leaf hashes that can
 be used in /ct/v1/get-proof-by-hash queries; for Static CT SCTs it outputs the
 leaf index advertised in the SCT extension.
 
@@ -20,7 +20,6 @@ import (
 	"os"
 
 	"filippo.io/sunlight"
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/tls"
@@ -61,10 +60,10 @@ func mkV1Cfg(logID []byte, leaf *ct.MerkleTreeLeaf) (*tokens.LogConfig, error) {
 		return nil, err
 	} else {
 		cfg := tokens.LogConfig{
-			Ver: consts.LogVersionV1,
-			Id:  base64.StdEncoding.EncodeToString(logID),
+			Id: base64.StdEncoding.EncodeToString(logID),
 			Hash: &tokens.LeafHash{
 				B64: base64.StdEncoding.EncodeToString(hash[:]),
+				Raw: hash[:],
 			},
 		}
 		return &cfg, nil
@@ -75,10 +74,13 @@ func mkStaticCfg(logID []byte, sct *ct.SignedCertificateTimestamp) (*tokens.LogC
 	if ext, err := sunlight.ParseExtensions(sct.Extensions); err != nil {
 		return nil, err
 	} else {
+		if ext.LeafIndex < 0 {
+			return nil, errors.New("negative static CT index")
+		}
+		index := uint64(ext.LeafIndex)
 		return &tokens.LogConfig{
-			Ver:   consts.LogVersionStatic,
 			Id:    base64.StdEncoding.EncodeToString(logID),
-			Index: &ext.LeafIndex,
+			Index: &index,
 		}, nil
 	}
 }
@@ -95,7 +97,8 @@ func mkV1Leaf(certChain []*x509.Certificate, timestamp uint64) (*ct.MerkleTreeLe
 func mkCfg(certChain []*x509.Certificate, sct *ct.SignedCertificateTimestamp) (*tokens.LogConfig, error) {
 	if len(sct.Extensions) > 0 {
 		return mkStaticCfg(sct.LogID.KeyID[:], sct)
-	} else if leaf, err := mkV1Leaf(certChain, sct.Timestamp); err != nil {
+	}
+	if leaf, err := mkV1Leaf(certChain, sct.Timestamp); err != nil {
 		return nil, err
 	} else {
 		return mkV1Cfg(sct.LogID.KeyID[:], leaf)

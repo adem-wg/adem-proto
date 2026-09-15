@@ -10,6 +10,7 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/gen"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
 func init() {
@@ -26,7 +27,6 @@ func main() {
 	if endorseKey == nil {
 		_, signedToken, err = gen.SignEmblem(
 			args.LoadPrivateKey(),
-			args.LoadHeaderKeyJWK(),
 			args.LoadAlg(),
 			args.LoadClaimsProto(),
 			args.LoadLifetime(),
@@ -34,14 +34,10 @@ func main() {
 	} else {
 		proto := args.LoadClaimsProto()
 		logs := args.LoadLogs()
-		if logs != nil {
-			if err := proto.Set("log", logs); err != nil {
-				log.Fatalf("could not set log in proto: %s", err)
-			}
-		}
+		proto.Log = logs
+
 		_, signedToken, err = gen.SignEndorsement(
 			args.LoadPrivateKey(),
-			args.LoadHeaderKeyJWK(),
 			args.LoadAlg(),
 			proto,
 			endorseKey,
@@ -53,5 +49,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(string(signedToken))
+	fmt.Println(tokens.Text(signedToken))
 }

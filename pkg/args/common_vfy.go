@@ -7,15 +7,14 @@ import (
 	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/roots"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/veraison/go-cose"
 )
 
 var CTProviderGoogle bool
 var CTProviderApple bool
 var CTProviderPattern string
 var trustedKeyPath string
-var trustedKeyJWK bool
 var trustedKeyAlg string
 var tokensFilePath string
 
@@ -26,13 +25,12 @@ func AddCTArgs() {
 }
 
 func AddVerificationArgs() {
-	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s); either PEM file or JWK set")
-	flag.BoolVar(&trustedKeyJWK, "trusted-pk-jwk", false, "are the trusted keys encoded as JWK? Default is PEM")
+	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s); PEM file")
 	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
 }
 
 func AddVerificationLocalArgs() {
-	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
+	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains newline-separated hexadecimal CWTs (if omitted, will read from stdin)")
 }
 
 var ErrNoLogProvider = errors.New("no log providers")
@@ -63,12 +61,12 @@ func FetchKnownLogs() error {
 	return nil
 }
 
-func LoadTrustedKeys() jwk.Set {
+func LoadTrustedKeys() tokens.KeySet {
 	if trustedKeyPath == "" {
-		return jwk.NewSet()
+		return tokens.NewKeySet()
 	}
 
-	if ks, err := LoadKeys(trustedKeyPath, trustedKeyJWK); err != nil {
+	if ks, err := LoadKeys(trustedKeyPath); err != nil {
 		log.Fatalf("could not load trusted keys: %s", err)
 		return nil
 	} else {
@@ -76,10 +74,10 @@ func LoadTrustedKeys() jwk.Set {
 	}
 }
 
-func LoadTrustedKeysAlg() jwa.SignatureAlgorithm {
-	if alg, ok := jwa.LookupSignatureAlgorithm(trustedKeyAlg); !ok {
+func LoadTrustedKeysAlg() cose.Algorithm {
+	if alg, ok := tokens.ParseAlgorithm(trustedKeyAlg); !ok {
 		log.Fatalf("could not load trusted key algorithm: %s\n", trustedKeyAlg)
-		return jwa.NoSignature()
+		return cose.AlgorithmReserved
 	} else {
 		return alg
 	}

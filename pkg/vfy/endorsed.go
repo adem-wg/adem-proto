@@ -1,15 +1,13 @@
 package vfy
 
 import (
-	"errors"
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/adem-wg/adem-proto/pkg/util"
 )
 
-func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, []string) {
+func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, trustedKeys tokens.KeySet) ([]VerificationResult, []string) {
 	rootIss, rootHasIss := root.Token.Issuer()
 	if !rootHasIss {
 		log.Printf("root endorsements misses issuer\n")
@@ -20,8 +18,7 @@ func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, 
 	trustedFound := false
 	existsEndorsement := false
 	for _, endorsement := range endorsements {
-		var end bool
-		var endLog tokens.Log
+		end, hasEnd := endorsement.Token.CWTClaims["end"].(bool)
 		if endorsedKID, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
 			continue
 		} else if endSub, ok := endorsement.Token.Subject(); !ok {
@@ -29,29 +26,27 @@ func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, 
 			continue
 		} else if rootIss != endSub {
 			continue
-		} else if endIss, ok := endorsement.Token.Issuer(); !ok {
+		} else if endIss, ok := endorsement.Token.Issuer(); !ok || endIss == rootIss {
 			continue
-		} else if err := endorsement.Token.Get("end", &end); err != nil {
-			if !errors.Is(err, jwt.ClaimNotFoundError()) {
-				log.Printf("could not access end claim: %s\n", err)
-			}
-		} else if !end {
-			continue
-		} else if err := endorsement.Token.Get("log", &endLog); err != nil {
-			if !errors.Is(err, jwt.ClaimNotFoundError()) {
-				log.Printf("could not access log claim: %s\n", err)
-			}
+		} else if !hasEnd || !end || endorsement.Token.Log == nil {
 			continue
 		} else if root.VerificationKid != endorsedKID {
 			continue
 		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
 			log.Printf("emblem does not comply with endorsement constraints: %s", err)
-			return []VerificationResult{INVALID}, nil
+			continue
 		} else {
+			if endorsement.commitment == nil || !endorsement.commitment() {
+				continue
+			}
 			existsEndorsement = true
-			issuers = append(issuers, endIss)
-			_, found := trustedKeys.LookupKeyID(endorsement.VerificationKid)
-			trustedFound = trustedFound || found
+			if _, ok := trustedKeys.LookupKeyID(endorsement.VerificationKid); ok {
+				trustedFound = true
+			}
+			if !util.Contains(issuers, endIss) {
+				issuers = append(issuers, endIss)
+			}
+
 		}
 	}
 
@@ -60,6 +55,7 @@ func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, 
 		if trustedFound {
 			results = append(results, ENDORSED_TRUSTED)
 		}
+
 		return results, issuers
 	} else {
 		return []VerificationResult{}, nil

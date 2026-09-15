@@ -1,107 +1,70 @@
+// records emits one uppercase hexadecimal IHLE RDATA field per line.
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
-func init() {
-	args.AddPublicKeyAlgArgs()
-	flag.BoolVar(&quoted, "quoted", false, "quote each output line as DNS TXT record contents")
-}
-
-var quoted bool
-
-func printLn(format string, ins ...any) {
-	s := fmt.Sprintf(format, ins...)
-	if quoted {
-		s = strconv.Quote(s)
-	}
-	fmt.Println(s)
-}
-
-func printTokens(path string) {
-	fp, err := os.Open(path)
-	if err != nil {
-		log.Fatalf("could not read file: %s", err)
-	}
-	defer fp.Close()
-
-	scanner := bufio.NewScanner(fp)
-	for scanner.Scan() {
-		token := scanner.Text()
-		if token != "" {
-			printLn("adem-token=%s", token)
-		}
-	}
-}
-
-func printKeys(keys jwk.Set, alg jwa.SignatureAlgorithm, setAlg bool) {
-	if keys == nil {
-		log.Fatal("key set is nil")
-	}
-
-	for i := range keys.Len() {
-		if k, ok := keys.Key(i); !ok {
-			log.Printf("cannot access key at %d", i)
-		} else if pk, err := k.PublicKey(); err != nil {
-			log.Printf("cannot get key: %s", err)
-		} else {
-			if setAlg {
-				if err := pk.Set("alg", alg); err != nil {
-					log.Printf("could not set alg: %s", err)
-					continue
-				}
-			}
-
-			if bJwk, err := json.Marshal(pk); err != nil {
-				log.Printf("could not encode key: %s", err)
-				continue
-			} else {
-				printLn("adem-key=%s", bJwk)
-			}
-		}
-	}
-}
-
 func main() {
+	args.AddPublicKeyAlgArgs()
 	flag.Parse()
-	files := flag.Args()
-	if len(files) == 0 {
-		flag.PrintDefaults()
-		log.Fatalf("no input")
+	if len(flag.Args()) == 0 {
+		log.Fatal("provide .cwt (hex lines), .cbor (binary CWT or COSE_Key), or .pem key files")
 	}
-
-	alg, algOk := args.LoadPKAlgOpt()
-
-	for _, file := range files {
-		switch filepath.Ext(file) {
-		case ".jws":
-			printTokens(file)
-		case ".pem":
-			if keys, err := args.LoadKeys(file, false); err != nil {
-				log.Printf("cannot load keys: %s", err)
-			} else {
-				printKeys(keys, alg, algOk)
+	alg, algOK := args.LoadPKAlgOpt()
+	for _, path := range flag.Args() {
+		switch filepath.Ext(path) {
+		case ".cwt", ".hex":
+			f, err := os.Open(path)
+			if err != nil {
+				log.Fatal(err)
 			}
-		case ".jwk":
-			if keys, err := args.LoadKeys(file, true); err != nil {
-				log.Printf("cannot load keys: %s", err)
-			} else {
-				printKeys(keys, alg, algOk)
+			items, err := tokens.ReadText(f)
+			f.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, raw := range items {
+				fmt.Println(tokens.Text(raw))
+			}
+		case ".cbor":
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := tokens.ValidateRecord(raw); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(tokens.Text(raw))
+		case ".pem":
+
+			ks, err := args.LoadKeys(path)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, k := range ks {
+				if algOK {
+					k, err = tokens.WithAlgorithm(k, alg)
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
+
+				raw, err := tokens.EncodePublicCOSEKey(k)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(tokens.Text(raw))
 			}
 		default:
-			log.Printf("unsupported file format: %s", file)
+			log.Fatalf("unsupported format %s; regenerate old JWS files as CWTs", path)
 		}
 	}
 }

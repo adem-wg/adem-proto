@@ -4,16 +4,15 @@ import (
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, *ADEMToken) {
+func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trustedKeys tokens.KeySet) ([]VerificationResult, *ADEMToken) {
 	embIss, embHasIss := emblem.Token.Issuer()
 	endorsedBy := make(map[string]ADEMToken)
 	for _, endorsement := range endorsements {
-		var end bool
-		if err := endorsement.Token.Get("end", &end); err != nil {
-			log.Printf("could not access end claim: %s\n", err)
+		end, ok := endorsement.Token.CWTClaims["end"].(bool)
+		if !ok {
+			log.Print("could not access end claim")
 			continue
 		} else if endorsedKid, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
 			log.Printf("could not get endorsed kid: %s\n", err)
@@ -21,9 +20,9 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 		} else if endIss, _ := endorsement.Token.Issuer(); embIss != endIss {
 			continue
 		} else if endSub, _ := endorsement.Token.Subject(); embIss != endSub {
-			continue
+			return []VerificationResult{INVALID}, nil
 		} else if endorsedKid != emblem.VerificationKid && !end {
-			continue
+			return []VerificationResult{INVALID}, nil
 		} else if _, ok := endorsedBy[endorsedKid]; ok {
 			log.Println("illegal branch in endorsements")
 			return []VerificationResult{INVALID}, nil
@@ -35,7 +34,12 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 	var root *ADEMToken
 	trustedFound := false
 	last := emblem
+	visited := map[string]bool{}
 	for root == nil {
+		if visited[last.VerificationKid] {
+			return []VerificationResult{INVALID}, nil
+		}
+		visited[last.VerificationKid] = true
 		if _, ok := trustedKeys.LookupKeyID(last.VerificationKid); ok {
 			trustedFound = true
 		}
@@ -52,16 +56,19 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 		}
 	}
 
+	if len(visited) != len(endorsedBy)+1 {
+		return []VerificationResult{INVALID}, nil
+	}
 	results := []VerificationResult{SIGNED}
 	if trustedFound {
 		results = append(results, SIGNED_TRUSTED)
 	}
 
-	rootLogged := root.Token.Has("log")
-	if embHasIss && !rootLogged {
-		log.Print("emblem contains issuer but provides no root key commitment")
-		return []VerificationResult{INVALID}, nil
-	} else if rootLogged {
+	if embHasIss {
+		if !root.IsEndorsement || root.Token.Log == nil || root.commitment == nil || !root.commitment() {
+			log.Print("emblem contains issuer but provides no verified root key commitment")
+			return []VerificationResult{INVALID}, nil
+		}
 		results = append(results, ORGANIZATIONAL)
 		if _, ok := trustedKeys.LookupKeyID(root.VerificationKid); ok {
 			results = append(results, ORGANIZATIONAL_TRUSTED)

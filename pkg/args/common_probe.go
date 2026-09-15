@@ -8,7 +8,7 @@ import (
 var probeDNS bool
 
 func AddProbeArgs() {
-	flag.BoolVar(&probeDNS, "dns", true, "probe DNS TXT records for tokens and keys")
+	flag.BoolVar(&probeDNS, "dns", true, "probe DNS IHLE records for tokens and keys")
 }
 
 func LoadProbeTarget() string {

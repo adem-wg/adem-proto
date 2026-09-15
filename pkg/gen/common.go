@@ -1,41 +1,39 @@
 package gen
 
 import (
+	"errors"
+	"math"
 	"time"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/veraison/go-cose"
 )
 
 type TokenGenerator interface {
 	// Generate a signed token. First argument is the signed token, second
-	// argument the bytes of the JWS in compact serialization.
-	SignToken() (jwt.Token, []byte, error)
+	// argument the bytes of the signed CWT.
+	SignToken() (*tokens.Claims, []byte, error)
 }
 
 type EmblemConfig struct {
-	sk           jwk.Key
-	headerKeyJwk bool
-	alg          jwa.SignatureAlgorithm
-	proto        jwt.Token
-	lifetime     int64
+	sk       *cose.Key
+	alg      cose.Algorithm
+	proto    *tokens.Claims
+	lifetime int64
 }
 
-func MkEmblemCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64) *EmblemConfig {
+func MkEmblemCfg(sk *cose.Key, alg cose.Algorithm, proto *tokens.Claims, lifetime int64) *EmblemConfig {
 	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime}
 }
 
 type EndorsementConfig struct {
 	EmblemConfig
-	endorse    jwk.Key
-	endorseAlg jwa.SignatureAlgorithm
+	endorse    *cose.Key
+	endorseAlg cose.Algorithm
 }
 
-func MkEndorsementCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, endorse jwk.Key, endorseAlg jwa.SignatureAlgorithm, lifetime int64) *EndorsementConfig {
+func MkEndorsementCfg(sk *cose.Key, alg cose.Algorithm, proto *tokens.Claims, endorse *cose.Key, endorseAlg cose.Algorithm, lifetime int64) *EndorsementConfig {
 	return &EndorsementConfig{
 		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime),
 		endorse:      endorse,
@@ -43,44 +41,39 @@ func MkEndorsementCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, e
 	}
 }
 
-func prepToken(t jwt.Token, lifetime int64) error {
-	iat := time.Now().Unix()
-	if err := t.Set("iat", iat); err != nil {
-		return err
+func prepToken(t *tokens.Claims, lifetime int64) error {
+	if t == nil || t.CWTClaims == nil {
+		return errors.New("missing claims prototype")
 	}
-
-	// Set nbf to iat if not already present
-	nbf := iat
-	if nbf_, ok := t.NotBefore(); ok {
-		nbf = nbf_.Unix()
-	} else if err := t.Set("nbf", iat); err != nil {
-		return err
+	now := time.Now().Unix()
+	t.CWTClaims[cose.CWTClaimIssuedAt] = now
+	if _, ok := t.CWTClaims[cose.CWTClaimNotBefore]; !ok {
+		t.CWTClaims[cose.CWTClaimNotBefore] = now
 	}
-
-	// Only set lifetime if not already present
-	if !t.Has("exp") {
-		if err := t.Set("exp", nbf+lifetime); err != nil {
+	if _, ok := t.CWTClaims[cose.CWTClaimExpirationTime]; !ok {
+		nbf, err := tokens.NumericDate(t.CWTClaims[cose.CWTClaimNotBefore])
+		if err != nil {
 			return err
+		}
+		if lifetime > 0 && nbf.Unix() > math.MaxInt64-lifetime || lifetime < 0 && nbf.Unix() < math.MinInt64-lifetime {
+			return errors.New("token lifetime overflows NumericDate")
+		}
+		t.CWTClaims[cose.CWTClaimExpirationTime] = nbf.Unix() + lifetime
+		if nbf.Nanosecond() != 0 {
+			t.CWTClaims[cose.CWTClaimExpirationTime] = float64(nbf.Unix()+lifetime) + float64(nbf.Nanosecond())/1e9
 		}
 	}
 	return nil
 }
 
-func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key, headerKeyJwk bool) ([]byte, error) {
-	headers := jws.NewHeaders()
-	headers.Set("cty", string(cty))
-	verifKey, err := signingKey.PublicKey()
+func signWithHeaders(t *tokens.Claims, endorsement bool, alg cose.Algorithm, signingKey *cose.Key) ([]byte, error) {
+	signingKey, err := tokens.WithAlgorithm(signingKey, alg)
 	if err != nil {
 		return nil, err
-	} else if err := verifKey.Set("alg", alg.String()); err != nil {
-		return nil, err
-	} else if headerKeyJwk {
-		headers.Set("jwk", verifKey)
-	} else if kid, err := tokens.GetKID(verifKey); err != nil {
-		return nil, err
-	} else {
-		headers.Set("kid", kid)
 	}
-
-	return jwt.Sign(t, jwt.WithKey(alg, signingKey, jws.WithProtectedHeaders(headers)))
+	payload, logs, err := tokens.EncodeClaims(t, endorsement)
+	if err != nil {
+		return nil, err
+	}
+	return tokens.SignMessage(payload, consts.ADEMType, signingKey, logs)
 }

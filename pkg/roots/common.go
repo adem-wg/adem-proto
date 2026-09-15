@@ -8,7 +8,7 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/veraison/go-cose"
 )
 
 var ErrIssNoHostName = errors.New("issuer has no hostname")
@@ -25,17 +25,17 @@ type CTQueryResult struct {
 
 // Verify that the given key was correctly committed to the Certificate
 // Transparency infrastructure for the given issuer.
-func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQueryResult {
+func VerifyBindingCerts(iss string, key *cose.Key, logs []*tokens.LogConfig) []CTQueryResult {
 	verified := VerifyInclusionConfig(logs)
-	for _, queryResult := range verified {
-		queryResult.Ok = VerifyBinding(queryResult, iss, key) == nil
+	for i := range verified {
+		verified[i].Ok = verified[i].Ok && VerifyBinding(verified[i], iss, key) == nil
 	}
 	return verified
 }
 
 // Verify that the rootKey is correctly bound to the issuer OI in the
 // certificate's subjects referenced by the CT query.
-func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
+func VerifyBinding(q CTQueryResult, issuer string, rootKey *cose.Key) error {
 	kid, err := tokens.CalcKID(rootKey)
 	if err != nil {
 		log.Print("could not calculate KID")
@@ -49,7 +49,7 @@ func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
 		return ErrIssNoHostName
 	}
 
-	if !util.Contains(q.subjects, issuerUrl.Hostname()) {
+	if !util.Contains(q.subjects, "adem-configuration."+issuerUrl.Hostname()) {
 		return ErrCertNotForIss
 	} else if !util.Contains(q.subjects, fmt.Sprintf("%s.adem-configuration.%s", kid, issuerUrl.Hostname())) {
 		return ErrCertNotForKey

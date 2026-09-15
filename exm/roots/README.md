@@ -20,7 +20,7 @@ $ ./kid.sh
 }
 ```
 
-The output of this script is the root public key represented as a [JWK](https://datatracker.ietf.org/doc/html/rfc7517).
+The output of this script is the root public key represented as a hexadecimal COSE_Key.
 The field `"kid"` is the hash of the root key.
 If you go to https://g5qt5cpf2pn7jwdny42n6lwvzqyy47xtt7o3ndpuvkgptez3at6q.adem-configuration.auth.felixlinker.de, you will see the same public key.
 

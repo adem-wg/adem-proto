@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 func TestPurposeMaskJSONRoundtrip(t *testing.T) {
@@ -32,7 +31,7 @@ func TestPurposeMaskInvalid(t *testing.T) {
 }
 
 func TestChannelMaskJSONRoundtrip(t *testing.T) {
-	var cm ChannelMask = DNS | TLS | UDP
+	var cm ChannelMask = DNS
 
 	if bs, err := json.Marshal(&cm); err != nil {
 		t.Fatalf("marshal failed: %v", err)
@@ -68,10 +67,10 @@ func TestLeafHashJSON(t *testing.T) {
 
 func TestStaticLogConfigJSON(t *testing.T) {
 	var cfg LogConfig
-	if err := json.Unmarshal([]byte(`{"ver":"static","id":"abc","index":42}`), &cfg); err != nil {
+	if err := json.Unmarshal([]byte(`{"id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","index":42}`), &cfg); err != nil {
 		t.Fatalf("expected unmarshal to succeed: %v", err)
 	}
-	if cfg.Ver != consts.LogVersionStatic || cfg.Id != "abc" {
+	if cfg.Id != "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" {
 		t.Fatalf("unexpected log config: %+v", cfg)
 	}
 	if cfg.Index == nil || *cfg.Index != 42 {
@@ -80,7 +79,7 @@ func TestStaticLogConfigJSON(t *testing.T) {
 	if cfg.Hash != nil {
 		t.Fatalf("did not expect hash in static config: %+v", cfg.Hash)
 	}
-	if bs, err := json.Marshal(&cfg); err != nil || string(bs) != `{"ver":"static","id":"abc","index":42}` {
+	if bs, err := json.Marshal(&cfg); err != nil || string(bs) != `{"id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","index":42}` {
 		t.Fatalf("unexpected marshal result %q (err=%v)", string(bs), err)
 	}
 }
@@ -96,37 +95,54 @@ func TestValidateOI(t *testing.T) {
 }
 
 func TestEndorsementValidatorAcceptsFalseEndClaim(t *testing.T) {
-	token := jwt.New()
+	token := NewClaims()
 	now := time.Now()
-	mustSetClaim(t, token, "ver", string(consts.V1))
+	mustSetClaim(t, token, "ver", uint64(consts.V1))
 	mustSetClaim(t, token, "iat", now)
 	mustSetClaim(t, token, "nbf", now.Add(-time.Minute))
 	mustSetClaim(t, token, "exp", now.Add(time.Hour))
+	mustSetClaim(t, token, "prp", uint64(1))
+	mustSetClaim(t, token, "key", make([]byte, 32))
 	mustSetClaim(t, token, "end", false)
 
-	if err := jwt.Validate(token, jwt.WithValidator(EndorsementValidator)); err != nil {
+	if err := ValidateClaims(token, true); err != nil {
 		t.Fatalf("expected end=false to validate as a legal boolean claim, got %v", err)
 	}
 }
 
 func TestEndorsementValidatorReportsIllegalEndClaim(t *testing.T) {
-	token := jwt.New()
+	token := NewClaims()
 	now := time.Now()
-	mustSetClaim(t, token, "ver", string(consts.V1))
+	mustSetClaim(t, token, "ver", uint64(consts.V1))
 	mustSetClaim(t, token, "iat", now)
 	mustSetClaim(t, token, "nbf", now.Add(-time.Minute))
 	mustSetClaim(t, token, "exp", now.Add(time.Hour))
+	mustSetClaim(t, token, "prp", uint64(1))
+	mustSetClaim(t, token, "key", make([]byte, 32))
 	mustSetClaim(t, token, "end", "false")
 
-	err := jwt.Validate(token, jwt.WithValidator(EndorsementValidator))
+	err := ValidateClaims(token, true)
 	if err == nil {
 		t.Fatalf("expected illegal claim type error, got %v", err)
 	}
 }
 
-func mustSetClaim(t *testing.T, token jwt.Token, name string, value any) {
+func mustSetClaim(t *testing.T, token *Claims, name string, value any) {
 	t.Helper()
-	if err := token.Set(name, value); err != nil {
-		t.Fatalf("could not set %s claim: %v", name, err)
+	if v, ok := value.(time.Time); ok {
+		value = v.Unix()
+	}
+	if label, ok := claimLabels[name]; ok {
+		token.CWTClaims[label] = value
+	} else {
+		token.CWTClaims[name] = value
+	}
+}
+
+func TestOIRejectsNonDomainAuthoritiesAndURIComponents(t *testing.T) {
+	for _, oi := range []string{"https://example.test#fragment", "https://example.test#", "https://example.test?", "https://example.test?query", "https://example.test/", "https://user@example.test", "https://example.test:443", "https://EXAMPLE.test", "https://127.0.0.1", "https://[::1]", "https://*.example.test", "https://bad_.test", "https://-bad.test"} {
+		if err := validateOI(oi); err == nil {
+			t.Fatalf("accepted invalid OI %s", oi)
+		}
 	}
 }
