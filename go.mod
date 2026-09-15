@@ -1,33 +1,36 @@
 module github.com/adem-wg/adem-proto
 
-go 1.24.0
+go 1.26.0
 
 require (
-	github.com/google/certificate-transparency-go v1.3.2
-	github.com/lestrrat-go/jwx/v3 v3.0.12
+	filippo.io/sunlight v0.9.0
+	github.com/fxamacker/cbor/v2 v2.9.4
+	github.com/google/certificate-transparency-go v1.3.3
+	github.com/lestrrat-go/jwx/v3 v3.3.0
 	github.com/transparency-dev/merkle v0.0.2
+	github.com/veraison/go-cose v1.3.0
 )
 
 require (
-	filippo.io/sunlight v0.8.0 // indirect
-	filippo.io/torchwood v0.8.0 // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.5.0 // indirect
-	github.com/goccy/go-json v0.10.5 // indirect
+	filippo.io/mldsa v0.0.0-20260711112038-ff3f469cee29 // indirect
+	filippo.io/torchwood v0.9.1-0.20260706112420-c22a68158d96 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
-	github.com/lestrrat-go/dsig v1.0.0 // indirect
+	github.com/lestrrat-go/dsig v1.4.0 // indirect
 	github.com/lestrrat-go/dsig-secp256k1 v1.0.0 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
-	github.com/lestrrat-go/httprc/v3 v3.0.1 // indirect
+	github.com/lestrrat-go/httprc/v3 v3.0.6 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
-	github.com/valyala/fastjson v1.6.4 // indirect
-	github.com/veraison/go-cose v1.3.0 // indirect
+	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
+	k8s.io/klog/v2 v2.140.0 // indirect
 )

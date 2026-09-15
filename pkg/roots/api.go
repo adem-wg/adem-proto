@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"filippo.io/sunlight"
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	ctclient "github.com/google/certificate-transparency-go/client"
 	"github.com/google/certificate-transparency-go/jsonclient"
@@ -35,7 +34,7 @@ func (v *v1InclusionVerifier) URL() string {
 }
 
 func (v *v1InclusionVerifier) VerifyInclusion(logConfig *tokens.LogConfig) ([]string, error) {
-	return verifyV1Inclusion(v.client, logConfig.Hash.Raw)
+	return verifyV1Inclusion(v.client, logConfig.Hash)
 }
 
 type staticInclusionVerifier struct {
@@ -56,11 +55,8 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 		return nil, ErrNoLogConfig
 	}
 
-	switch logConfig.Ver {
-	case consts.LogVersionV1:
-		if logConfig.Hash == nil {
-			return nil, ErrMissingLeafHash
-		} else if logInfo, err := GetV1Log(logConfig.Id); err != nil {
+	if logConfig.Hash != nil {
+		if logInfo, err := GetV1Log(logConfig.Id); err != nil {
 			return nil, err
 		} else if logInfo.URL == "" {
 			return nil, ErrMissingV1URL
@@ -69,10 +65,8 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 		} else {
 			return &v1InclusionVerifier{client: client}, nil
 		}
-	case consts.LogVersionStatic:
-		if logConfig.Index == nil {
-			return nil, ErrMissingLeafIndex
-		} else if logInfo, err := GetStaticLog(logConfig.Id); err != nil {
+	} else if logConfig.Index != nil {
+		if logInfo, err := GetStaticLog(logConfig.Id); err != nil {
 			return nil, err
 		} else if logInfo.MonitoringURL == "" {
 			return nil, ErrMissingStaticURL
@@ -87,7 +81,7 @@ func GetInclusionVerifier(logConfig *tokens.LogConfig) (InclusionVerifier, error
 		} else {
 			return &staticInclusionVerifier{client: client, monitoringURL: logInfo.MonitoringURL}, nil
 		}
-	default:
-		return nil, ErrIllegalLogVersion
+	} else {
+		return nil, errors.New("incomplete log information")
 	}
 }

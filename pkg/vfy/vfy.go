@@ -6,11 +6,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/adem-wg/adem-proto/pkg/ident"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 var ErrNoKeyFound = errors.New("no key found")
@@ -23,7 +20,7 @@ var ErrTokenNonCompact = errors.New("token is not in compact serialization")
 
 type VerificationResults struct {
 	results    []VerificationResult
-	protected  []*ident.AI
+	marked     []string
 	issuer     string
 	endorsedBy []string
 }
@@ -39,12 +36,8 @@ func (res VerificationResults) Print() {
 		resultsStrs = append(resultsStrs, r.String())
 	}
 	lns = append(lns, fmt.Sprintf("- Security levels:    %s", strings.Join(resultsStrs, ", ")))
-	if len(res.protected) > 0 {
-		assets := make([]string, 0, len(res.protected))
-		for _, asset := range res.protected {
-			assets = append(assets, asset.String())
-		}
-		lns = append(lns, fmt.Sprintf("- Protected assets:   %s", strings.Join(assets, ", ")))
+	if len(res.marked) > 0 {
+		lns = append(lns, fmt.Sprintf("- Marked assets:   %s", strings.Join(res.marked, ", ")))
 	}
 	if res.issuer != "" {
 		lns = append(lns, fmt.Sprintf("- Issuer of emblem:   %s", res.issuer))
@@ -89,15 +82,13 @@ const SIGNED_TRUSTED VerificationResult = 5
 const ORGANIZATIONAL_TRUSTED VerificationResult = 6
 const ENDORSED_TRUSTED VerificationResult = 7
 
-func filterKeys(rawTokens [][]byte) ([][]byte, jwk.Set) {
+func filterKeys(rawTokens [][]byte) ([][]byte, tokens.KeySet) {
 	remaining := make([][]byte, 0)
-	keys := jwk.NewSet()
+	keys := tokens.KeySet{}
 	for _, t := range rawTokens {
-		if key, err := jwk.ParseKey(t); err == nil {
-			if _, err := tokens.SetKID(key, true); err != nil {
-				log.Printf("could not compute kid: %s", err)
-			} else {
-				keys.AddKey(key)
+		if key, err := tokens.ParseKey(t); err == nil {
+			if err := tokens.AddKey(keys, key); err != nil {
+				log.Printf("could not use key: %s", err)
 			}
 		} else {
 			remaining = append(remaining, t)
@@ -108,7 +99,7 @@ func filterKeys(rawTokens [][]byte) ([][]byte, jwk.Set) {
 }
 
 // Verify a slice of ADEM tokens.
-func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
+func VerifyTokens(rawTokens [][]byte, trustedKeys tokens.KeySet) VerificationResults {
 
 	// Early termination for empty rawTokens slice
 	if len(rawTokens) == 0 {
@@ -117,7 +108,7 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 
 	// Ensure trustedKeys is non-nil
 	if trustedKeys == nil {
-		trustedKeys = jwk.NewSet()
+		trustedKeys = tokens.KeySet{}
 	}
 
 	tokensNoKeys, untrustedKeys := filterKeys(rawTokens)
@@ -140,25 +131,16 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 	}
 
 	var emblem *ADEMToken
-	var protected tokens.Assets // TODO: fix missing assignment
 	endorsements := []ADEMToken{}
 	for _, t := range verifiedTokens {
-		if t.IsEndorsement {
+		if t.IsEndorsement() {
 			endorsements = append(endorsements, t)
-		} else if emblem == nil {
-			emblem = &t
-			if err := emblem.Token.Get("assets", &protected); err != nil {
-				if errors.Is(err, jwt.ClaimNotFoundError()) {
-					log.Printf("No assets claim")
-				} else {
-					log.Printf("Could not access assets claim: %s", err)
-				}
-				return ResultInvalid()
+		} else if t.IsEmblem() {
+			if emblem == nil {
+				emblem = &t
 			}
 		} else {
-			// Multiple emblems
-			log.Print("Token set contains multiple emblems")
-			return ResultInvalid()
+			log.Printf("Discarding invalid token")
 		}
 	}
 
@@ -183,11 +165,10 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys jwk.Set) VerificationResults {
 		return ResultInvalid()
 	}
 
-	iss, _ := root.Token.Issuer()
 	return VerificationResults{
 		results:    append(vfyResults, endorsedResults...),
-		issuer:     iss,
+		issuer:     root.Token.Iss,
 		endorsedBy: endorsedBy,
-		protected:  protected,
+		marked:     emblem.Token.Assets,
 	}
 }

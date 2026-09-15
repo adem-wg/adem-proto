@@ -8,7 +8,7 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/veraison/go-cose"
 )
 
 var ErrIssNoHostName = errors.New("issuer has no hostname")
@@ -25,7 +25,7 @@ type CTQueryResult struct {
 
 // Verify that the given key was correctly committed to the Certificate
 // Transparency infrastructure for the given issuer.
-func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQueryResult {
+func VerifyBindingCerts(iss string, key *cose.Key, logs tokens.Log) []CTQueryResult {
 	verified := VerifyInclusionConfig(logs)
 	for _, queryResult := range verified {
 		queryResult.Ok = VerifyBinding(queryResult, iss, key) == nil
@@ -35,8 +35,8 @@ func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQ
 
 // Verify that the rootKey is correctly bound to the issuer OI in the
 // certificate's subjects referenced by the CT query.
-func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
-	kid, err := tokens.CalcKID(rootKey)
+func VerifyBinding(q CTQueryResult, issuer string, rootKey *cose.Key) error {
+	kid, err := tokens.COSEThumbprintB32(rootKey)
 	if err != nil {
 		log.Print("could not calculate KID")
 		return err
@@ -67,11 +67,11 @@ func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
 			log.Print("nil log config")
 			result.Ok = false
 		} else if verifier, err := GetInclusionVerifier(logConfig); err != nil {
-			result.LogID = logConfig.Id
+			result.LogID = LogIDToString(logConfig.Id)
 			log.Printf("could not get log client: %s", err)
 			result.Ok = false
 		} else {
-			result.LogID = logConfig.Id
+			result.LogID = LogIDToString(logConfig.Id)
 			result.LogURL = verifier.URL()
 			if subjs, err := verifier.VerifyInclusion(logConfig); err != nil {
 				log.Printf("could not verify binding: %s", err)

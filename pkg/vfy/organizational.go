@@ -4,31 +4,31 @@ import (
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
-func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, *ADEMToken) {
-	embIss, embHasIss := emblem.Token.Issuer()
+func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trustedKeys tokens.KeySet) ([]VerificationResult, *ADEMToken) {
 	endorsedBy := make(map[string]ADEMToken)
 	for _, endorsement := range endorsements {
-		var end bool
-		if err := endorsement.Token.Get("end", &end); err != nil {
-			log.Printf("could not access end claim: %s\n", err)
+		if endorsement.Token.End == nil {
+			log.Printf("endorsement has no end claim")
 			continue
-		} else if endorsedKid, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
-			log.Printf("could not get endorsed kid: %s\n", err)
+		} else if endorsement.Token.Key == nil {
+			log.Printf("endorsement misses key")
 			continue
-		} else if endIss, _ := endorsement.Token.Issuer(); embIss != endIss {
+		} else if endorsement.Token.Iss != emblem.Token.Iss {
 			continue
-		} else if endSub, _ := endorsement.Token.Subject(); embIss != endSub {
+		} else if endorsement.Token.Sub != emblem.Token.Iss { // TODO: Funny combinations of empty strings?
 			continue
-		} else if endorsedKid != emblem.VerificationKid && !end {
-			continue
-		} else if _, ok := endorsedBy[endorsedKid]; ok {
-			log.Println("illegal branch in endorsements")
-			return []VerificationResult{INVALID}, nil
 		} else {
-			endorsedBy[endorsedKid] = endorsement
+			endorsedKid := tokens.ThumbprintToString(endorsement.Token.Key)
+			if emblem.VerificationKid != endorsedKid && !*endorsement.Token.End {
+				continue
+			} else if _, ok := endorsedBy[endorsedKid]; ok {
+				log.Println("illegal branch in endorsements")
+				return []VerificationResult{INVALID}, nil
+			} else {
+				endorsedBy[endorsedKid] = endorsement
+			}
 		}
 	}
 
@@ -36,12 +36,12 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 	trustedFound := false
 	last := emblem
 	for root == nil {
-		if _, ok := trustedKeys.LookupKeyID(last.VerificationKid); ok {
+		if _, ok := trustedKeys[last.VerificationKid]; ok {
 			trustedFound = true
 		}
 
 		if endorsing, ok := endorsedBy[last.VerificationKid]; ok {
-			if err := tokens.VerifyConstraints(emblem.Token, endorsing.Token); err != nil {
+			if err := tokens.Valid(emblem.Token, endorsing.Token); err != nil {
 				log.Printf("emblem does not comply with endorsement constraints: %s\n", err)
 				return []VerificationResult{INVALID}, nil
 			} else {
@@ -57,13 +57,13 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 		results = append(results, SIGNED_TRUSTED)
 	}
 
-	rootLogged := root.Token.Has("log")
-	if embHasIss && !rootLogged {
+	rootLogged := root.Token.Log != nil
+	if emblem.Token.Iss != "" && !rootLogged {
 		log.Print("emblem contains issuer but provides no root key commitment")
 		return []VerificationResult{INVALID}, nil
 	} else if rootLogged {
 		results = append(results, ORGANIZATIONAL)
-		if _, ok := trustedKeys.LookupKeyID(root.VerificationKid); ok {
+		if _, ok := trustedKeys[root.VerificationKid]; ok {
 			results = append(results, ORGANIZATIONAL_TRUSTED)
 		}
 	}

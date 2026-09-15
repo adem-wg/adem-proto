@@ -1,132 +1,93 @@
 package tokens
 
 import (
-	"encoding/json"
+	"bytes"
+	"slices"
 	"testing"
-	"time"
 
-	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/fxamacker/cbor/v2"
 )
 
-func TestPurposeMaskJSONRoundtrip(t *testing.T) {
-	var pm PurposeMask = Protective | Indicative
+var MinimalEmblem = Claims{
+	Ver:    1,
+	Iss:    "https://example.com",
+	Exp:    7,
+	Nbf:    7,
+	Prp:    RedCrProtective | CivilDefence,
+	Assets: []string{"example.com"},
+}
 
-	if bs, err := json.Marshal(&pm); err != nil {
-		t.Fatalf("marshal failed: %v", err)
-	} else {
-		var decoded PurposeMask
-		if err := json.Unmarshal(bs, &decoded); err != nil {
-			t.Fatalf("unmarshal failed: %v", err)
-		} else if decoded != pm {
-			t.Fatalf("expected %b after roundtrip, got %b", pm, decoded)
-		}
+var True = true
+
+var MinimalEndorsement = Claims{
+	Ver: 1,
+	Iss: "https://example.com",
+	Sub: "https://example.com",
+	Exp: 7,
+	Nbf: 7,
+	Prp: RedCrIndicative | BlueShield,
+	Key: []byte{0, 1, 2},
+	End: &True,
+}
+
+// TODO: Test for complete endorsement including logs
+
+func TestEncodeDecodeEmblem(t *testing.T) {
+	if embBs, err := cbor.Marshal(MinimalEmblem); err != nil {
+		t.Fatalf("marshalling emblem failed: %v", err)
+	} else if emb, err := DecodePayload(embBs); err != nil {
+		t.Fatalf("unmarshaling emblem failed: %v", err)
+	} else if emb.Ver != 1 {
+		t.Fatalf("emb.Ver is %v but expected 1", emb.Ver)
+	} else if emb.Iss != MinimalEmblem.Iss {
+		t.Fatalf("emb.Iss is %v but expected %v", emb.Iss, MinimalEmblem.Iss)
+	} else if emb.Sub != "" {
+		t.Fatalf("emb.Sub is %v but expected empty string", emb.Sub)
+	} else if emb.Exp != MinimalEmblem.Exp {
+		t.Fatalf("emb.Exp is %v but expected %v", emb.Exp, MinimalEmblem.Exp)
+	} else if emb.Nbf != MinimalEmblem.Nbf {
+		t.Fatalf("emb.Nbf is %v but expected %v", emb.Nbf, MinimalEmblem.Nbf)
+	} else if emb.Iat != 0 {
+		t.Fatalf("emb.Iat is %v but expected 0", emb.Iat)
+	} else if emb.Prp != MinimalEmblem.Prp {
+		t.Fatalf("emb.Prp is %v but expected %v", emb.Prp, MinimalEmblem.Prp)
+	} else if !slices.Equal(emb.Assets, MinimalEmblem.Assets) {
+		t.Fatalf("emb.Assets is %v but expected %v", emb.Assets, MinimalEmblem.Assets)
+	} else if emb.Key != nil {
+		t.Fatal("emb.Key is defined but expected nil")
+	} else if emb.End != nil {
+		t.Fatal("emb.End is defined but expected nil")
+	} else if emb.Log != nil {
+		t.Fatal("emb.Log is defined but expected nil")
 	}
 }
 
-func TestPurposeMaskInvalid(t *testing.T) {
-	var pm PurposeMask
-	if err := json.Unmarshal([]byte(`["`+consts.Protective+`","unknown"]`), &pm); err == nil {
-		t.Fatalf("expected unknown constant to error")
-	}
-}
-
-func TestChannelMaskJSONRoundtrip(t *testing.T) {
-	var cm ChannelMask = DNS | TLS | UDP
-
-	if bs, err := json.Marshal(&cm); err != nil {
-		t.Fatalf("marshal failed: %v", err)
-	} else {
-		var decoded ChannelMask
-		if err := json.Unmarshal(bs, &decoded); err != nil {
-			t.Fatalf("unmarshal failed: %v", err)
-		} else if decoded != cm {
-			t.Fatalf("expected %b after roundtrip, got %b", cm, decoded)
-		}
-	}
-}
-
-func TestChannelMaskInvalid(t *testing.T) {
-	var cm ChannelMask
-	if err := json.Unmarshal([]byte(`["`+consts.DNS+`","unknown"]`), &cm); err == nil {
-		t.Fatalf("expected unknown constant to error")
-	}
-}
-
-func TestLeafHashJSON(t *testing.T) {
-	var h LeafHash
-	if err := json.Unmarshal([]byte(`"YWJj"`), &h); err != nil {
-		t.Fatalf("expected unmarshal to succeed: %v", err)
-	}
-	if h.B64 != "YWJj" || string(h.Raw) != "abc" {
-		t.Fatalf("unexpected leaf hash values: %+v", h)
-	}
-	if bs, err := json.Marshal(&h); err != nil || string(bs) != `"YWJj"` {
-		t.Fatalf("unexpected marshal result %q (err=%v)", string(bs), err)
-	}
-}
-
-func TestStaticLogConfigJSON(t *testing.T) {
-	var cfg LogConfig
-	if err := json.Unmarshal([]byte(`{"ver":"static","id":"abc","index":42}`), &cfg); err != nil {
-		t.Fatalf("expected unmarshal to succeed: %v", err)
-	}
-	if cfg.Ver != consts.LogVersionStatic || cfg.Id != "abc" {
-		t.Fatalf("unexpected log config: %+v", cfg)
-	}
-	if cfg.Index == nil || *cfg.Index != 42 {
-		t.Fatalf("unexpected static index: %+v", cfg.Index)
-	}
-	if cfg.Hash != nil {
-		t.Fatalf("did not expect hash in static config: %+v", cfg.Hash)
-	}
-	if bs, err := json.Marshal(&cfg); err != nil || string(bs) != `{"ver":"static","id":"abc","index":42}` {
-		t.Fatalf("unexpected marshal result %q (err=%v)", string(bs), err)
-	}
-}
-
-func TestValidateOI(t *testing.T) {
-	if err := validateOI("https://example.com"); err != nil {
-		t.Fatalf("expected valid OI, got %v", err)
-	} else if err := validateOI("http://example.com"); err == nil {
-		t.Fatalf("expected invalid scheme to fail validation")
-	} else if err := validateOI("https://example.com/path"); err == nil {
-		t.Fatalf("expected path to make OI invalid")
-	}
-}
-
-func TestEndorsementValidatorAcceptsFalseEndClaim(t *testing.T) {
-	token := jwt.New()
-	now := time.Now()
-	mustSetClaim(t, token, "ver", string(consts.V1))
-	mustSetClaim(t, token, "iat", now)
-	mustSetClaim(t, token, "nbf", now.Add(-time.Minute))
-	mustSetClaim(t, token, "exp", now.Add(time.Hour))
-	mustSetClaim(t, token, "end", false)
-
-	if err := jwt.Validate(token, jwt.WithValidator(EndorsementValidator)); err != nil {
-		t.Fatalf("expected end=false to validate as a legal boolean claim, got %v", err)
-	}
-}
-
-func TestEndorsementValidatorReportsIllegalEndClaim(t *testing.T) {
-	token := jwt.New()
-	now := time.Now()
-	mustSetClaim(t, token, "ver", string(consts.V1))
-	mustSetClaim(t, token, "iat", now)
-	mustSetClaim(t, token, "nbf", now.Add(-time.Minute))
-	mustSetClaim(t, token, "exp", now.Add(time.Hour))
-	mustSetClaim(t, token, "end", "false")
-
-	err := jwt.Validate(token, jwt.WithValidator(EndorsementValidator))
-	if err == nil {
-		t.Fatalf("expected illegal claim type error, got %v", err)
-	}
-}
-
-func mustSetClaim(t *testing.T, token jwt.Token, name string, value any) {
-	t.Helper()
-	if err := token.Set(name, value); err != nil {
-		t.Fatalf("could not set %s claim: %v", name, err)
+func TestEncodeDecodeEndorsement(t *testing.T) {
+	if endBs, err := cbor.Marshal(MinimalEndorsement); err != nil {
+		t.Fatalf("marshalling endorsement failed: %v", err)
+	} else if end, err := DecodePayload(endBs); err != nil {
+		t.Fatalf("unmarshaling endorsement failed: %v", err)
+	} else if end.Ver != 1 {
+		t.Fatalf("end.Ver is %v but expected 1", end.Ver)
+	} else if end.Iss != MinimalEndorsement.Iss {
+		t.Fatalf("end.Iss is %v but expected %v", end.Iss, MinimalEndorsement.Iss)
+	} else if end.Sub != MinimalEndorsement.Sub {
+		t.Fatalf("end.Sub is %v but expected %v", end.Sub, MinimalEndorsement.Sub)
+	} else if end.Exp != MinimalEndorsement.Exp {
+		t.Fatalf("end.Exp is %v but expected %v", end.Exp, MinimalEndorsement.Exp)
+	} else if end.Nbf != MinimalEndorsement.Nbf {
+		t.Fatalf("end.Nbf is %v but expected %v", end.Nbf, MinimalEndorsement.Nbf)
+	} else if end.Iat != 0 {
+		t.Fatalf("end.Iat is %v but expected 0", end.Iat)
+	} else if end.Prp != MinimalEndorsement.Prp {
+		t.Fatalf("end.Prp is %v but expected %v", end.Prp, MinimalEndorsement.Prp)
+	} else if end.Assets != nil {
+		t.Fatal("end.Assets is defined but expected nil")
+	} else if !bytes.Equal(end.Key, MinimalEndorsement.Key) {
+		t.Fatalf("end.Key is %v but expected %v", end.Key, MinimalEmblem.Key)
+	} else if *end.End != *MinimalEndorsement.End {
+		t.Fatalf("end.End is %v but expected %v", end.End, MinimalEmblem.End)
+	} else if end.Log != nil {
+		t.Fatal("end.Log is defined but expected nil")
 	}
 }

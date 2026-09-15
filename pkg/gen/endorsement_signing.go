@@ -1,40 +1,16 @@
 package gen
 
 import (
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/veraison/go-cose"
 )
 
-func (cfg *EndorsementConfig) SignToken() (jwt.Token, []byte, error) {
-	return SignEndorsement(cfg.sk, cfg.headerKeyJwk, cfg.alg, cfg.proto, cfg.endorse, cfg.endorseAlg, cfg.lifetime)
+func (cfg *EndorsementConfig) SignToken() (*cose.Sign1Message, error) {
+	return SignEndorsement(cfg.sk, cfg.proto, cfg.endorse, cfg.lifetime)
 }
 
-func SignEndorsement(secretKey jwk.Key, headerKeyJwk bool, signingAlg jwa.SignatureAlgorithm, token jwt.Token, endorseKey jwk.Key, pkAlg jwa.SignatureAlgorithm, lifetime int64) (jwt.Token, []byte, error) {
-	if err := prepToken(token, lifetime); err != nil {
-		return nil, nil, err
-	}
-
-	endorseKey, err := endorseKey.PublicKey()
-	if err != nil {
-		return nil, nil, err
-	} else if err := endorseKey.Set("alg", pkAlg.String()); err != nil {
-		return nil, nil, err
-	} else if _, err := tokens.SetKID(endorseKey, false); err != nil {
-		return nil, nil, err
-	}
-
-	if kid, err := tokens.GetKID(endorseKey); err == nil {
-		token.Set("key", kid)
-	} else {
-		return nil, nil, err
-	}
-
-	compact, err := signWithHeaders(token, consts.EndorsementCty, signingAlg, secretKey, headerKeyJwk)
-	if err != nil {
-		return nil, nil, err
-	}
-	return token, compact, nil
+func SignEndorsement(secretKey *cose.Key, token *tokens.Claims, endorseKid []byte, lifetime int64) (*cose.Sign1Message, error) {
+	prepToken(token, lifetime)
+	token.Key = endorseKid
+	return signWithHeaders(token, secretKey)
 }

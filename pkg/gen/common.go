@@ -1,86 +1,70 @@
 package gen
 
 import (
+	"crypto/rand"
 	"time"
 
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/veraison/go-cose"
 )
 
 type TokenGenerator interface {
-	// Generate a signed token. First argument is the signed token, second
-	// argument the bytes of the JWS in compact serialization.
-	SignToken() (jwt.Token, []byte, error)
+	SignToken() (*cose.Sign1Message, error)
 }
 
 type EmblemConfig struct {
-	sk           jwk.Key
-	headerKeyJwk bool
-	alg          jwa.SignatureAlgorithm
-	proto        jwt.Token
-	lifetime     int64
+	sk       *cose.Key
+	proto    *tokens.Claims
+	lifetime int64
 }
 
-func MkEmblemCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, lifetime int64) *EmblemConfig {
-	return &EmblemConfig{sk: sk, alg: alg, proto: proto, lifetime: lifetime}
+func MkEmblemCfg(sk *cose.Key, proto *tokens.Claims, lifetime int64) *EmblemConfig {
+	return &EmblemConfig{sk: sk, proto: proto, lifetime: lifetime}
 }
 
 type EndorsementConfig struct {
 	EmblemConfig
-	endorse    jwk.Key
-	endorseAlg jwa.SignatureAlgorithm
+	endorse []byte
 }
 
-func MkEndorsementCfg(sk jwk.Key, alg jwa.SignatureAlgorithm, proto jwt.Token, endorse jwk.Key, endorseAlg jwa.SignatureAlgorithm, lifetime int64) *EndorsementConfig {
+func MkEndorsementCfg(sk *cose.Key, proto *tokens.Claims, endorse []byte, lifetime int64) *EndorsementConfig {
 	return &EndorsementConfig{
-		EmblemConfig: *MkEmblemCfg(sk, alg, proto, lifetime),
+		EmblemConfig: *MkEmblemCfg(sk, proto, lifetime),
 		endorse:      endorse,
-		endorseAlg:   endorseAlg,
 	}
 }
 
-func prepToken(t jwt.Token, lifetime int64) error {
-	iat := time.Now().Unix()
-	if err := t.Set("iat", iat); err != nil {
-		return err
-	}
+func prepToken(t *tokens.Claims, lifetime int64) {
+	t.Iat = time.Now().Unix()
 
 	// Set nbf to iat if not already present
-	nbf := iat
-	if nbf_, ok := t.NotBefore(); ok {
-		nbf = nbf_.Unix()
-	} else if err := t.Set("nbf", iat); err != nil {
-		return err
+	if t.Nbf == 0 {
+		t.Nbf = t.Iat
 	}
 
 	// Only set lifetime if not already present
-	if !t.Has("exp") {
-		if err := t.Set("exp", nbf+lifetime); err != nil {
-			return err
-		}
+	if t.Exp == 0 {
+		t.Exp = t.Iat + lifetime
 	}
-	return nil
 }
 
-func signWithHeaders(t jwt.Token, cty consts.CTY, alg jwa.SignatureAlgorithm, signingKey jwk.Key, headerKeyJwk bool) ([]byte, error) {
-	headers := jws.NewHeaders()
-	headers.Set("cty", string(cty))
-	verifKey, err := signingKey.PublicKey()
-	if err != nil {
+func signWithHeaders(t *tokens.Claims, signingKey *cose.Key) (*cose.Sign1Message, error) {
+	if signer, err := signingKey.Signer(); err != nil {
 		return nil, err
-	} else if err := verifKey.Set("alg", alg.String()); err != nil {
+	} else if kid, err := tokens.COSEThumbprint(signingKey); err != nil {
 		return nil, err
-	} else if headerKeyJwk {
-		headers.Set("jwk", verifKey)
-	} else if kid, err := tokens.GetKID(verifKey); err != nil {
+	} else if payload, err := cbor.Marshal(t); err != nil {
 		return nil, err
 	} else {
-		headers.Set("kid", kid)
+		msg := cose.NewSign1Message()
+		msg.Headers.Protected.SetAlgorithm(signingKey.Algorithm)
+		msg.Headers.Protected[cose.HeaderLabelKeyID] = kid
+		msg.Payload = payload
+		if err := msg.Sign(rand.Reader, nil, signer); err != nil {
+			return nil, err
+		} else {
+			return msg, nil
+		}
 	}
-
-	return jwt.Sign(t, jwt.WithKey(alg, signingKey, jws.WithProtectedHeaders(headers)))
 }

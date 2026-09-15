@@ -37,7 +37,7 @@ func storeLogs(rawJSON []byte) error {
 
 		for _, operator := range ll.Operators {
 			for _, l := range operator.Logs {
-				id := base64.StdEncoding.EncodeToString(l.LogID)
+				id := LogIDToString(l.LogID)
 				v1Logs[id] = V1Log{
 					KeyDER: append([]byte(nil), l.Key...),
 					URL:    l.URL,
@@ -45,7 +45,7 @@ func storeLogs(rawJSON []byte) error {
 			}
 
 			for _, l := range operator.TiledLogs {
-				id := base64.StdEncoding.EncodeToString(l.LogID)
+				id := LogIDToString(l.LogID)
 				staticLogs[id] = StaticLog{
 					KeyDER:        append([]byte(nil), l.Key...),
 					MonitoringURL: l.MonitoringURL,
@@ -57,22 +57,26 @@ func storeLogs(rawJSON []byte) error {
 	}
 }
 
-func GetV1Log(id string) (V1Log, error) {
+func LogIDToString(id []byte) string {
+	return base64.StdEncoding.EncodeToString(id)
+}
+
+func GetV1Log(id []byte) (V1Log, error) {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
 
-	if log, ok := v1Logs[id]; !ok {
+	if log, ok := v1Logs[LogIDToString(id)]; !ok {
 		return V1Log{}, ErrUnknownLog
 	} else {
 		return log, nil
 	}
 }
 
-func GetStaticLog(id string) (StaticLog, error) {
+func GetStaticLog(id []byte) (StaticLog, error) {
 	logMapLock.Lock()
 	defer logMapLock.Unlock()
 
-	if log, ok := staticLogs[id]; !ok {
+	if log, ok := staticLogs[LogIDToString(id)]; !ok {
 		return StaticLog{}, ErrUnknownLog
 	} else {
 		return log, nil

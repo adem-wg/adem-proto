@@ -1,17 +1,13 @@
 package vfy
 
 import (
-	"errors"
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
-func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, trustedKeys jwk.Set) ([]VerificationResult, []string) {
-	rootIss, rootHasIss := root.Token.Issuer()
-	if !rootHasIss {
+func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, trustedKeys tokens.KeySet) ([]VerificationResult, []string) {
+	if root.Token.Iss == "" {
 		log.Printf("root endorsements misses issuer\n")
 		return []VerificationResult{INVALID}, nil
 	}
@@ -20,37 +16,31 @@ func verifyEndorsed(emblem ADEMToken, root ADEMToken, endorsements []ADEMToken, 
 	trustedFound := false
 	existsEndorsement := false
 	for _, endorsement := range endorsements {
-		var end bool
-		var endLog tokens.Log
-		if endorsedKID, err := tokens.GetEndorsedKID(endorsement.Token); err != nil {
+		if endorsement.Token.Key == nil {
 			continue
-		} else if endSub, ok := endorsement.Token.Subject(); !ok {
+		} else if endorsement.Token.Sub == "" {
 			log.Printf("ill-formed endorsement: misses sub claim\n")
 			continue
-		} else if rootIss != endSub {
+		} else if root.Token.Iss != endorsement.Token.Sub {
 			continue
-		} else if endIss, ok := endorsement.Token.Issuer(); !ok {
+		} else if endorsement.Token.Iss == "" {
 			continue
-		} else if err := endorsement.Token.Get("end", &end); err != nil {
-			if !errors.Is(err, jwt.ClaimNotFoundError()) {
-				log.Printf("could not access end claim: %s\n", err)
-			}
-		} else if !end {
+		} else if endorsement.Token.End == nil {
+			log.Printf("endorsement has no end claim")
+		} else if !*endorsement.Token.End {
 			continue
-		} else if err := endorsement.Token.Get("log", &endLog); err != nil {
-			if !errors.Is(err, jwt.ClaimNotFoundError()) {
-				log.Printf("could not access log claim: %s\n", err)
-			}
+		} else if endorsement.Token.Log == nil {
+			log.Printf("endorsements require root key commitment")
 			continue
-		} else if root.VerificationKid != endorsedKID {
+		} else if root.VerificationKid != tokens.ThumbprintToString(endorsement.Token.Key) {
 			continue
-		} else if err := tokens.VerifyConstraints(emblem.Token, endorsement.Token); err != nil {
+		} else if err := tokens.Valid(emblem.Token, endorsement.Token); err != nil {
 			log.Printf("emblem does not comply with endorsement constraints: %s", err)
 			return []VerificationResult{INVALID}, nil
 		} else {
 			existsEndorsement = true
-			issuers = append(issuers, endIss)
-			_, found := trustedKeys.LookupKeyID(endorsement.VerificationKid)
+			issuers = append(issuers, endorsement.Token.Iss)
+			_, found := trustedKeys[endorsement.VerificationKid]
 			trustedFound = trustedFound || found
 		}
 	}

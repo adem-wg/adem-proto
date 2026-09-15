@@ -1,191 +1,74 @@
 package tokens
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/url"
 
-	"github.com/adem-wg/adem-proto/pkg/consts"
-	"github.com/adem-wg/adem-proto/pkg/ident"
-	"github.com/adem-wg/adem-proto/pkg/util"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/fxamacker/cbor/v2"
 )
 
-type Log = []*LogConfig
-type Assets = []*ident.AI
-
-// Register JWT fields of emblems for easier parsing.
-func init() {
-	jwt.RegisterCustomField("log", Log{})
-	jwt.RegisterCustomField("key", "")
-	jwt.RegisterCustomField("assets", Assets{})
-	jwt.RegisterCustomField("emb", EmblemConstraints{})
-	jwt.RegisterCustomField("ver", "")
+type Claims struct {
+	Ver    int      `cbor:"ver"`
+	Iss    string   `cbor:"1,keyasint,omitempty"`
+	Sub    string   `cbor:"2,keyasint,omitempty"`
+	Exp    int64    `cbor:"4,keyasint"`
+	Nbf    int64    `cbor:"5,keyasint"`
+	Iat    int64    `cbor:"6,keyasint,omitempty"`
+	Prp    byte     `cbor:"prp"`
+	Assets []string `cbor:"assets,omitempty"`
+	Key    []byte   `cbor:"key,omitempty"`
+	End    *bool    `cbor:"end,omitempty"`
+	Log    Log      `cbor:"log,omitempty"`
 }
+
+func (cs *Claims) GetEndorsedKID() (string, bool) {
+	if cs.Key == nil {
+		return "", false
+	} else {
+		return ThumbprintToString(cs.Key), true
+	}
+}
+
+type Log = []*LogConfig
 
 var ErrIllegalConst = errors.New("json element is illegal constant")
 
-type PurposeMask byte
+const RedCrProtective byte = 0b0000_0001
+const RedCrIndicative byte = 0b0000_0010
+const DangerousForces byte = 0b0000_0100
+const CivilDefence byte = 0b0000_1000
+const BlueShield byte = 0b0001_0000
 
-const Protective PurposeMask = 0b0000_0001
-const Indicative PurposeMask = 0b0000_0010
-
-func (pm *PurposeMask) UnmarshalJSON(in []byte) error {
-	var prps []string
-	var mask PurposeMask
-	if err := json.Unmarshal(in, &prps); err != nil {
-		return err
-	} else {
-		for _, prp := range prps {
-			switch prp {
-			case consts.Protective:
-				mask |= Protective
-			case consts.Indicative:
-				mask |= Indicative
-			default:
-				return ErrIllegalConst
-			}
-		}
-	}
-	*pm = mask
-	return nil
-}
-
-func (pm *PurposeMask) MarshalJSON() ([]byte, error) {
-	var purposes []string
-	if *pm&Protective != 0 {
-		purposes = append(purposes, consts.Protective)
-	}
-	if *pm&Indicative != 0 {
-		purposes = append(purposes, consts.Indicative)
-	}
-	return json.Marshal(purposes)
-}
-
-type ChannelMask byte
-
-const DNS ChannelMask = 0b0000_0001
-const TLS ChannelMask = 0b0000_0010
-const UDP ChannelMask = 0b0000_0100
-
-func (cm *ChannelMask) UnmarshalJSON(bs []byte) error {
-	var dsts []string
-	var mask ChannelMask
-	if err := json.Unmarshal(bs, &dsts); err != nil {
-		return err
-	} else {
-		for _, dst := range dsts {
-			switch dst {
-			case consts.DNS:
-				mask |= DNS
-			case consts.TLS:
-				mask |= TLS
-			case consts.UDP:
-				mask |= UDP
-			default:
-				return ErrIllegalConst
-			}
-		}
-	}
-	*cm = mask
-	return nil
-}
-
-func (cm *ChannelMask) MarshalJSON() ([]byte, error) {
-	var dsts []string
-	if *cm&DNS != 0 {
-		dsts = append(dsts, consts.DNS)
-	}
-	if *cm&TLS != 0 {
-		dsts = append(dsts, consts.TLS)
-	}
-	if *cm&UDP != 0 {
-		dsts = append(dsts, consts.UDP)
-	}
-	return json.Marshal(dsts)
-}
-
-type EmblemConstraints struct {
-	Purpose      *PurposeMask `json:"prp,omitempty"`
-	Distribution *ChannelMask `json:"dst,omitempty"`
-	Assets       []*ident.AI  `json:"assets,omitempty"`
-	Window       *int         `json:"wnd,omitempty"`
-}
+const MaxPurpose = RedCrProtective | RedCrIndicative | DangerousForces | CivilDefence | BlueShield
 
 // Struct that represents an identifying log binding.
 type LogConfig struct {
-	Ver   string    `json:"ver"`
-	Id    string    `json:"id"`
-	Hash  *LeafHash `json:"hash,omitempty"`
-	Index *int64    `json:"index,omitempty"`
+	Id    []byte `cbor:"id"`
+	Hash  []byte `cbor:"hash,omitempty"`
+	Index *int64 `cbor:"index,omitempty"`
 }
 
-// Wrapper type for easier JSON unmarshalling of base64-encoded JSON strings of
-// leaf hashes.
-type LeafHash struct {
-	B64 string
-	Raw []byte
-}
-
-// Attempt to parse a JSON value as string that contains a base64-encoded leaf
-// hash.
-func (h *LeafHash) UnmarshalJSON(bs []byte) (err error) {
-	trimmed := bytes.Trim(bs, `"`)
-	if raw, e := util.B64Dec(trimmed); e != nil {
-		err = e
+func DecodePayload(payload []byte) (*Claims, error) {
+	var claims Claims
+	if err := cbor.Unmarshal(payload, &claims); err != nil {
+		return nil, err
+	} else if claims.Ver != 1 {
+		return nil, errors.New("illegal version")
+	} else if err := validateOI(claims.Iss); err != nil {
+		return nil, err
+	} else if err := validateOI(claims.Sub); err != nil {
+		return nil, err
+	} else if claims.Prp <= 0 || MaxPurpose <= claims.Prp {
+		return nil, errors.New("illegal purpose bitmask")
 	} else {
-		h.B64 = string(trimmed)
-		h.Raw = raw
+		return &claims, nil
 	}
-	return
-}
-
-func (h *LeafHash) MarshalJSON() ([]byte, error) {
-	return json.Marshal(h.B64)
 }
 
 var ErrIllegalVersion = errors.New("illegal version")
 var ErrAssets = errors.New("emblems require non-empty assets claim")
 var ErrLogClaim = errors.New("emblems must not contain a log claim")
 var ErrEndMissing = errors.New("endorsements require end claim")
-
-// Validation function for emblem tokens.
-var EmblemValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) error {
-	if err := validateCommon(t); err != nil {
-		return err
-	}
-
-	var assets Assets
-	if err := t.Get("assets", &assets); err != nil {
-		return ErrAssets
-	} else if len(assets) == 0 {
-		return ErrAssets
-	}
-
-	if t.Has("log") {
-		return ErrLogClaim
-	}
-
-	return nil
-})
-
-// Validation function for endorsement tokens.
-var EndorsementValidator = jwt.ValidatorFunc(func(_ context.Context, t jwt.Token) error {
-	if err := validateCommon(t); err != nil {
-		return err
-	}
-
-	var end bool
-	err := t.Get("end", &end)
-	if err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
-		return fmt.Errorf("missing claim \"end\"")
-	}
-
-	return nil
-})
 
 // Validate that an OI has the form https://DOMAINNAME.
 func validateOI(oi string) error {
@@ -200,23 +83,5 @@ func validateOI(oi string) error {
 	if url.Scheme != "https" || url.Host == "" || url.Opaque != "" || url.User != nil || url.Path != "" || url.RawQuery != "" || url.RawFragment != "" {
 		return errors.New("illegal OI")
 	}
-	return nil
-}
-
-// Validate claims shared by emblems and endorsements.
-func validateCommon(t jwt.Token) error {
-	if err := jwt.Validate(t); err != nil {
-		return err
-	}
-
-	var ver string
-	if err := t.Get("ver", &ver); err != nil || ver != string(consts.V1) {
-		return ErrIllegalVersion
-	}
-
-	if iss, ok := t.Issuer(); ok && validateOI(iss) != nil {
-		return jwt.InvalidIssuerError()
-	}
-
 	return nil
 }

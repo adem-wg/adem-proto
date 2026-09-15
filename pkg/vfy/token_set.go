@@ -4,11 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/adem-wg/adem-proto/pkg/roots"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/veraison/go-cose"
 )
 
 type TokenVerifier struct {
@@ -18,13 +15,13 @@ type TokenVerifier struct {
 type TokenSet struct {
 	verified     map[string]bool
 	dependencies map[string][]TokenVerifier
-	keyMaterial  jwk.Set
+	keyMaterial  map[string]*cose.Key
 	roots        []ADEMToken
 	results      []ADEMToken
 	errors       []error
 }
 
-func NewTokenSet(keyMaterial jwk.Set) TokenSet {
+func NewTokenSet(keyMaterial tokens.KeySet) TokenSet {
 	var th TokenSet
 	th.verified = make(map[string]bool)
 	th.dependencies = make(map[string][]TokenVerifier)
@@ -36,75 +33,51 @@ func NewTokenSet(keyMaterial jwk.Set) TokenSet {
 }
 
 func (th *TokenSet) AddToken(rawToken []byte) error {
-	if msg, err := jws.Parse(rawToken); err != nil {
+	msg := cose.NewSign1Message()
+	if err := msg.UnmarshalCBOR(rawToken); err != nil {
 		return err
-	} else if len(msg.Signatures()) != 1 {
-		return ErrTokenNonCompact
-	} else {
-		headers := msg.Signatures()[0].ProtectedHeaders()
-		var verificationKey jwk.Key
-		if headerKid, ok := headers.KeyID(); ok {
-			if kidKey, ok := th.keyMaterial.LookupKeyID(headerKid); ok {
-				verificationKey = kidKey
-			} else {
-				return ErrNoKeyFound
-			}
-		} else if headerKey, ok := headers.JWK(); headerKey != nil && ok {
-			verificationKey = headerKey
-		} else {
-			return ErrNoKeyFound
-		}
+	}
 
-		if verificationKid, err := tokens.SetKID(verificationKey, true); err != nil {
-			return err
+	var verificationKey *cose.Key
+	var verificationKid string
+	if headerKid, ok := msg.Headers.Protected[cose.HeaderLabelKeyID]; !ok {
+		return ErrNoKeyFound
+	} else if headerKidBs, ok := headerKid.([]byte); !ok {
+		return ErrNoKeyFound
+	} else {
+		verificationKid = tokens.ThumbprintToString(headerKidBs)
+		if kidKey, ok := th.keyMaterial[verificationKid]; !ok {
+			return ErrNoKeyFound
 		} else {
-			verifier := VerifierFor(rawToken, verificationKey)
-			var logs tokens.Log
-			if body, err := jwt.Parse(msg.Payload(), jwt.WithVerify(false)); err != nil {
-				return err
-			} else if err := body.Get("log", &logs); err != nil && !errors.Is(err, jwt.ClaimNotFoundError()) {
-				return err
-			} else if err == nil {
-				if len(logs) == 0 {
-					return ErrLogsEmpty
-				} else if iss, ok := body.Issuer(); !ok {
-					return ErrNoIss
-				} else if t, err := verifier.Verify(); err != nil {
-					return err
-				} else {
-					for _, r := range roots.VerifyBindingCerts(iss, verificationKey, logs) {
-						if !r.Ok {
-							return ErrRootKeyUnbound
-						}
-					}
-					th.roots = append(th.roots, *t)
-				}
-			} else {
-				th.dependencies[verificationKid] = append(th.dependencies[verificationKid], verifier)
-			}
-			return nil
+			verificationKey = kidKey
 		}
 	}
+
+	verifier, isRoot := VerifierFor(msg, verificationKid, verificationKey)
+	if isRoot {
+		if t, err := verifier.Verify(); err != nil {
+			return err
+		} else {
+			th.roots = append(th.roots, *t)
+		}
+	} else {
+		th.dependencies[verificationKid] = append(th.dependencies[verificationKid], verifier)
+	}
+	return nil
 }
 
-func (th *TokenSet) Verify(trustedKeys jwk.Set) ([]ADEMToken, []error) {
+func (th *TokenSet) Verify(trustedKeys tokens.KeySet) ([]ADEMToken, []error) {
 	for _, r := range th.roots {
-		if kid, err := tokens.GetEndorsedKID(r.Token); err == nil {
+		if kid, ok := r.Token.GetEndorsedKID(); ok {
 			th.results = append(th.results, r)
 			th.setVerified(kid)
 		} else {
-			th.errors = append(th.errors, err)
+			th.errors = append(th.errors, errors.New("endorsement without endorsed key"))
 		}
 	}
 
-	for i := range trustedKeys.Len() {
-		if k, ok := trustedKeys.Key(i); !ok {
-			th.errors = append(th.errors, fmt.Errorf("could not access trusted keys at index %d", i))
-		} else if kid, err := tokens.SetKID(k, true); err != nil {
-			th.errors = append(th.errors, err)
-		} else {
-			th.setVerified(kid)
-		}
+	for kid, _ := range trustedKeys {
+		th.setVerified(kid)
 	}
 
 	count := 0
@@ -134,7 +107,7 @@ func (th *TokenSet) setVerified(kid string) {
 			th.errors = append(th.errors, err)
 		} else {
 			th.results = append(th.results, *t)
-			if endorsedKid, err := tokens.GetEndorsedKID(t.Token); err == nil {
+			if endorsedKid, ok := t.Token.GetEndorsedKID(); ok {
 				th.setVerified(endorsedKid)
 			}
 		}
