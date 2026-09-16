@@ -1,107 +1,81 @@
+/*
+This tool converts CBOR arrays of ADEM tokens and COSE keys to the hexadecimal
+presentation used by the DNS tooling. Tokens and keys are detected from their
+CBOR structure rather than from file extensions.
+*/
 package main
 
 import (
-	"bufio"
-	"encoding/json"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
-	"github.com/adem-wg/adem-proto/pkg/args"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/veraison/go-cose"
 )
-
-func init() {
-	args.AddPublicKeyAlgArgs()
-	flag.BoolVar(&quoted, "quoted", false, "quote each output line as DNS TXT record contents")
-}
 
 var quoted bool
 
-func printLn(format string, ins ...any) {
-	s := fmt.Sprintf(format, ins...)
+func init() {
+	flag.BoolVar(&quoted, "quoted", false, "quote each output line as DNS TXT record contents")
+}
+
+func printLn(format string, values ...any) {
+	line := fmt.Sprintf(format, values...)
 	if quoted {
-		s = strconv.Quote(s)
+		line = strconv.Quote(line)
 	}
-	fmt.Println(s)
+	fmt.Println(line)
 }
 
-func printTokens(path string) {
-	fp, err := os.Open(path)
+func itemKind(raw []byte) (string, error) {
+	if len(raw) > 0 && raw[0]>>5 == 5 {
+		if _, err := tokens.ParseKey(raw); err != nil {
+			return "", fmt.Errorf("invalid COSE_Key: %w", err)
+		}
+		return "key", nil
+	}
+	message := cose.NewSign1Message()
+	if err := message.UnmarshalCBOR(raw); err == nil {
+		return "token", nil
+	}
+	return "", fmt.Errorf("CBOR item is neither a COSE_Key nor COSE_Sign1 token")
+}
+
+func printFile(path string) {
+	raw, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("could not read file: %s", err)
+		log.Printf("cannot read %s: %s", path, err)
+		return
 	}
-	defer fp.Close()
 
-	scanner := bufio.NewScanner(fp)
-	for scanner.Scan() {
-		token := scanner.Text()
-		if token != "" {
-			printLn("adem-token=%s", token)
+	var items []cbor.RawMessage
+	err = cbor.Unmarshal(raw, &items)
+	if err != nil {
+		log.Printf("cannot decode %s as a CBOR array: %s", path, err)
+		return
+	}
+	for _, item := range items {
+		kind, err := itemKind(item)
+		if err != nil {
+			log.Printf("cannot use item from %s: %s", path, err)
+			continue
 		}
-	}
-}
-
-func printKeys(keys jwk.Set, alg jwa.SignatureAlgorithm, setAlg bool) {
-	if keys == nil {
-		log.Fatal("key set is nil")
-	}
-
-	for i := range keys.Len() {
-		if k, ok := keys.Key(i); !ok {
-			log.Printf("cannot access key at %d", i)
-		} else if pk, err := k.PublicKey(); err != nil {
-			log.Printf("cannot get key: %s", err)
-		} else {
-			if setAlg {
-				if err := pk.Set("alg", alg); err != nil {
-					log.Printf("could not set alg: %s", err)
-					continue
-				}
-			}
-
-			if bJwk, err := json.Marshal(pk); err != nil {
-				log.Printf("could not encode key: %s", err)
-				continue
-			} else {
-				printLn("adem-key=%s", bJwk)
-			}
-		}
+		printLn("adem-%s=%s", kind, hex.EncodeToString(item))
 	}
 }
 
 func main() {
 	flag.Parse()
-	files := flag.Args()
-	if len(files) == 0 {
+	if flag.NArg() == 0 {
 		flag.PrintDefaults()
-		log.Fatalf("no input")
+		log.Fatal("no input")
 	}
-
-	alg, algOk := args.LoadPKAlgOpt()
-
-	for _, file := range files {
-		switch filepath.Ext(file) {
-		case ".jws":
-			printTokens(file)
-		case ".pem":
-			if keys, err := args.LoadKeys(file, false); err != nil {
-				log.Printf("cannot load keys: %s", err)
-			} else {
-				printKeys(keys, alg, algOk)
-			}
-		case ".jwk":
-			if keys, err := args.LoadKeys(file, true); err != nil {
-				log.Printf("cannot load keys: %s", err)
-			} else {
-				printKeys(keys, alg, algOk)
-			}
-		default:
-			log.Printf("unsupported file format: %s", file)
-		}
+	for _, path := range flag.Args() {
+		printFile(path)
 	}
 }
