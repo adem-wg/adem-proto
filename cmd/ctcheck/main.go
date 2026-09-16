@@ -1,12 +1,11 @@
 /*
-This tool reads JSON from stdin, attempts to parse it as "log" claim of
+This tool reads CBOR from stdin, attempts to parse it as the "log" claim of
 endorsements, and verifies that the given certificates are committed to the
 respective logs.
 */
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"io"
 	"log"
@@ -15,6 +14,7 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/roots"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/fxamacker/cbor/v2"
 )
 
 func init() {
@@ -30,8 +30,8 @@ func main() {
 		log.Fatalf("could not fetch known CT logs: %s", err)
 	} else {
 		logs := []*tokens.LogConfig{}
-		if err := json.Unmarshal(bs, &logs); err != nil {
-			log.Fatalf("could not decode json: %s", err)
+		if err := cbor.Unmarshal(bs, &logs); err != nil {
+			log.Fatalf("could not decode CBOR: %s", err)
 		} else {
 			results := roots.VerifyInclusionConfig(logs)
 			for _, r := range results {

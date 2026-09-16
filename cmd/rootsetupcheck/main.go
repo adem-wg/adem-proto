@@ -1,12 +1,11 @@
 /*
-This tool reads JSON from stdin, attempts to parse it as "log" claim of
+This tool reads CBOR from stdin, attempts to parse it as the "log" claim of
 endorsements, and verifies that the given public key is correctly committed to
 the given OI in the logs.
 */
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"io"
 	"log"
@@ -15,15 +14,14 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/roots"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/fxamacker/cbor/v2"
 )
 
 var OI string
 
 func init() {
 	args.AddPublicKeyArgs()
-	args.AddPublicKeyAlgArgs()
 	args.AddCTArgs()
-	args.AddVerificationArgs()
 	flag.StringVar(&OI, "oi", "", "OI to check root key log inclusion")
 }
 
@@ -32,8 +30,6 @@ func main() {
 
 	if pk := args.LoadPublicKey(); pk == nil {
 		log.Fatal("no public key to verify")
-	} else if err := pk.Set("alg", args.LoadPKAlg()); err != nil {
-		log.Fatalf("could not set public key algorithm: %s", err)
 	} else if OI == "" {
 		log.Fatal("no issuer given")
 	} else if bs, err := io.ReadAll(os.Stdin); err != nil {
@@ -42,8 +38,8 @@ func main() {
 		log.Fatalf("could not fetch known CT logs: %s", err)
 	} else {
 		logs := []*tokens.LogConfig{}
-		if err := json.Unmarshal(bs, &logs); err != nil {
-			log.Fatalf("could not decode json: %s", err)
+		if err := cbor.Unmarshal(bs, &logs); err != nil {
+			log.Fatalf("could not decode CBOR: %s", err)
 		} else {
 			results := roots.VerifyBindingCerts(OI, pk, logs)
 			for _, r := range results {

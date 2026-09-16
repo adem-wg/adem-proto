@@ -1,19 +1,14 @@
 /*
-This tool will read a number of newline seperated tokens in JWS compact
-serialization (see [RFC 7515]) and attempt to verify them as ADEM tokens.
-
-[RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515
+This tool reads a CBOR array of COSE_Sign1 tokens and attempts to verify the
+represented ADEM token set.
 */
 package main
 
 import (
-	"bufio"
 	"flag"
-	"io"
 	"log"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
-	"github.com/adem-wg/adem-proto/pkg/tokens"
 	"github.com/adem-wg/adem-proto/pkg/vfy"
 )
 
@@ -23,43 +18,27 @@ func init() {
 	args.AddVerificationLocalArgs()
 }
 
-func loadTokensLocal() ([][]byte, error) {
-	file := args.LoadTokensFile()
-	if file != nil {
-		defer file.Close()
-	}
-	reader := bufio.NewReader(file)
-	lines := [][]byte{}
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		} else {
-			lines = append(lines, line)
-		}
-	}
-	return lines, nil
-}
-
 func main() {
 	flag.Parse()
 	if err := args.FetchKnownLogs(); err != nil {
 		log.Fatalf("could not fetch known logs: %s", err)
 	}
 
-	ts, err := loadTokensLocal()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	trustedKeys := args.LoadTrustedKeys()
-	if trustedKeys.Len() > 0 {
-		if trustedKeys, err = tokens.SetKIDs(trustedKeys, args.LoadTrustedKeysAlg()); err != nil {
-			log.Fatalf("could not set trusted keys KIDs: %s", err)
+	messages := args.LoadTokens()
+	rawTokens := make([][]byte, 0, len(messages))
+	for _, message := range messages {
+		raw, err := message.MarshalCBOR()
+		if err != nil {
+			log.Fatalf("could not encode token for verification: %s", err)
 		}
+		rawTokens = append(rawTokens, raw)
 	}
-
-	vfy.VerifyTokens(ts, trustedKeys).Print()
+	for _, key := range args.LoadVerificationKeys() {
+		raw, err := key.MarshalCBOR()
+		if err != nil {
+			log.Fatalf("could not encode verification key: %s", err)
+		}
+		rawTokens = append(rawTokens, raw)
+	}
+	vfy.VerifyTokens(rawTokens, args.LoadTrustedKeys()).Print()
 }

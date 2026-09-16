@@ -5,53 +5,45 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
+	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/gen"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/veraison/go-cose"
 )
 
 func init() {
 	args.AddSigningArgs()
 	args.AddPublicKeyArgs()
-	args.AddPublicKeyAlgArgs()
 }
 
 func main() {
 	flag.Parse()
-	var signedToken []byte
-	var err error
+	claims := args.LoadClaimsProto()
 	endorseKey := args.LoadPublicKey()
+	var message *cose.Sign1Message
+	var err error
 	if endorseKey == nil {
-		_, signedToken, err = gen.SignEmblem(
-			args.LoadPrivateKey(),
-			args.LoadHeaderKeyJWK(),
-			args.LoadAlg(),
-			args.LoadClaimsProto(),
-			args.LoadLifetime(),
-		)
+		message, err = gen.SignEmblem(args.LoadPrivateKey(), claims, args.LoadLifetime())
 	} else {
-		proto := args.LoadClaimsProto()
-		logs := args.LoadLogs()
-		if logs != nil {
-			if err := proto.Set("log", logs); err != nil {
-				log.Fatalf("could not set log in proto: %s", err)
-			}
+		if logs := args.LoadLogs(); logs != nil {
+			claims.Log = logs
 		}
-		_, signedToken, err = gen.SignEndorsement(
+		message, err = gen.SignEndorsement(
 			args.LoadPrivateKey(),
-			args.LoadHeaderKeyJWK(),
-			args.LoadAlg(),
-			proto,
+			claims,
 			endorseKey,
-			args.LoadPKAlg(),
 			args.LoadLifetime(),
 		)
 	}
 
 	if err != nil {
 		log.Fatal(err)
+	} else if signedTokens, err := cbor.Marshal([]*cose.Sign1Message{message}); err != nil {
+		log.Fatalf("could not encode signed token array: %s", err)
+	} else if _, err := os.Stdout.Write(signedTokens); err != nil {
+		log.Fatalf("could not write signed token array: %s", err)
 	}
-	fmt.Println(string(signedToken))
 }

@@ -1,49 +1,44 @@
 /*
-This tool takes a public key as argument and calculates its KID using its
-canonical JSON representation and SHA256. It prints the key in JWK JSON
-serialization (see [RFC 7517]) to stdout.
-
-[RFC 7517]: https://www.rfc-editor.org/rfc/rfc7517
+This tool converts a COSE key or PEM key to a public COSE key and computes its
+COSE Key Thumbprint. With -key-out, it writes a CBOR array containing the key.
 */
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/veraison/go-cose"
 )
 
-var kidOut bool
+var keyOut bool
 
 func init() {
 	args.AddPublicKeyArgs()
-	args.AddPublicKeyAlgArgs()
-	flag.BoolVar(&kidOut, "kid-out", false, "Set to only output key ID. Otherwise output public key.")
+	flag.BoolVar(&keyOut, "key-out", false, "Set to output entire key. Otherwise output base32-encoded key identifier.")
 }
 
 func main() {
 	flag.Parse()
 
-	key := args.LoadPublicKey()
-	pkAlg := args.LoadPKAlg()
-
-	if pk, err := key.PublicKey(); err != nil {
-		log.Fatalf("could not get public key: %s", err)
-	} else if err := pk.Set("alg", pkAlg.String()); err != nil {
-		log.Fatalf("could not set alg: %s", err)
-	} else if kid, err := tokens.SetKID(pk, true); err != nil {
-		log.Fatalf("could not hash key: %s", err)
+	if publicKey := args.LoadPublicKey(); publicKey == nil {
+		log.Fatal("no public key provided")
 	} else {
-		if kidOut {
-			fmt.Println(kid)
-		} else if bs, err := json.MarshalIndent(pk, "", "  "); err != nil {
-			log.Fatalf("could not marshall JSON: %s", err)
+		if keyOut {
+			if raw, err := cbor.Marshal([]*cose.Key{publicKey}); err != nil {
+				log.Fatalf("could not encode COSE key array: %s", err)
+			} else if _, err := os.Stdout.Write(raw); err != nil {
+				log.Fatalf("could not write COSE key array: %s", err)
+			}
+		} else if kid, err := tokens.COSEThumbprintB32(publicKey); err != nil {
+			log.Fatalf("could not hash key: %s", err)
 		} else {
-			fmt.Printf("%s\n", string(bs))
+			fmt.Println(kid)
 		}
 	}
 }

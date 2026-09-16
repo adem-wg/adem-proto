@@ -25,10 +25,10 @@ func MkEmblemCfg(sk *cose.Key, proto *tokens.Claims, lifetime int64) *EmblemConf
 
 type EndorsementConfig struct {
 	EmblemConfig
-	endorse []byte
+	endorse *cose.Key
 }
 
-func MkEndorsementCfg(sk *cose.Key, proto *tokens.Claims, endorse []byte, lifetime int64) *EndorsementConfig {
+func MkEndorsementCfg(sk *cose.Key, proto *tokens.Claims, endorse *cose.Key, lifetime int64) *EndorsementConfig {
 	return &EndorsementConfig{
 		EmblemConfig: *MkEmblemCfg(sk, proto, lifetime),
 		endorse:      endorse,

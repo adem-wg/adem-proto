@@ -7,67 +7,39 @@ import (
 	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/veraison/go-cose"
 )
 
 var alg string
 var lifetime int64
-var skeyFile string
-var skeyJWK bool
+var skeyCBORFile string
+var skeyPEMFile string
 var protoPath string
 var logsPath string
-var publicKeyPath string
-var publicKeyJWK bool
-var publicKeyAlg string
-var headerKeyFmt string
+var publicKeyCBORPath string
+var publicKeyPEMPath string
 
 func AddSigningArgs() {
-	flag.StringVar(&alg, "alg", "", "signing algorithm")
-	flag.Int64Var(&lifetime, "lifetime", 172800, "emblem validity period; will be ignored if proto specifies exp")
-	flag.StringVar(&skeyFile, "skey", "", "path to secret key file")
-	flag.BoolVar(&skeyJWK, "skey-jwk", false, "is the signing key encoded as JWK? Default is PEM")
-	flag.StringVar(&protoPath, "proto", "", "path to claims prototype")
-	flag.StringVar(&logsPath, "logs", "", "path to key commitment information")
-	flag.StringVar(&headerKeyFmt, "key-fmt", "kid", "should the verification key in the header be included as full key (jwk) or by reference (kid)? Default is kid.")
+	flag.StringVar(&alg, "alg", "", "COSE signing algorithm (for example ES256)")
+	flag.Int64Var(&lifetime, "lifetime", 172800, "token validity period; ignored if the claims specify exp")
+	flag.StringVar(&skeyCBORFile, "skey-cbor", "", "path to a CBOR array of private COSE keys")
+	flag.StringVar(&skeyPEMFile, "skey-pem", "", "path to a PEM-encoded private key")
+	flag.StringVar(&protoPath, "proto", "", "path to a JSON-encoded Claims object")
+	flag.StringVar(&logsPath, "logs", "", "path to a CBOR-encoded log claim")
 }
 
 func AddPublicKeyArgs() {
-	flag.StringVar(&publicKeyPath, "pk", "", "path to key to public keys (for endorsements or verification) either PEM file or JWK set")
-	flag.BoolVar(&publicKeyJWK, "pk-jwk", false, "are the keys encoded as JWK? If not set, PEM is assumed.")
+	flag.StringVar(&publicKeyCBORPath, "pk-cbor", "", "path to a CBOR array of COSE keys")
+	flag.StringVar(&publicKeyPEMPath, "pk-pem", "", "path to a PEM-encoded key")
 }
 
-func AddPublicKeyAlgArgs() {
-	flag.StringVar(&publicKeyAlg, "pk-alg", "", "public key alg (if omitted, will use -alg)")
-}
-
-func LoadAlg() jwa.SignatureAlgorithm {
-	if a, ok := jwa.LookupSignatureAlgorithm(alg); !ok {
-		log.Fatalf(`"-alg %s" algorithm not found`, alg)
-		return jwa.NoSignature()
+func LoadAlg() cose.Algorithm {
+	if algorithm, err := ParseAlgorithm(alg); err != nil {
+		log.Fatalf("could not load signing algorithm: %s", err)
+		return cose.AlgorithmReserved
 	} else {
-		return a
-	}
-}
-
-func LoadPKAlgOpt() (jwa.SignatureAlgorithm, bool) {
-	if publicKeyAlg == "" {
-		return jwa.NoSignature(), false
-	} else if alg, ok := jwa.LookupSignatureAlgorithm(publicKeyAlg); !ok {
-		log.Fatalf(`"-pk-alg %s" algorithm not found`, publicKeyAlg)
-		return jwa.NoSignature(), false
-	} else {
-		return alg, true
-	}
-}
-
-func LoadPKAlg() jwa.SignatureAlgorithm {
-	if alg, ok := LoadPKAlgOpt(); ok {
-		return alg
-	} else {
-		// Default to private key algorithm
-		return LoadAlg()
+		return algorithm
 	}
 }
 
@@ -75,66 +47,60 @@ func LoadLifetime() int64 {
 	return lifetime
 }
 
-func LoadPrivateKey() jwk.Key {
-	if ks, err := LoadKeys(skeyFile, skeyJWK); err != nil {
-		log.Fatalf("could not load skey: %s", err)
+func loadOneKey(cborPath, pemPath string) *cose.Key {
+	if keys, err := LoadKeys(cborPath, pemPath); err != nil {
+		log.Fatalf("could not load key: %s", err)
 		return nil
-	} else if k, ok := ks.Key(0); !ok {
-		log.Fatalf("to little or too many keys in file")
+	} else if len(keys) != 1 {
+		log.Fatalf("expected exactly one key, got %d", len(keys))
 		return nil
 	} else {
-		return k
+		return keys[0]
 	}
 }
 
-func LoadClaimsProto() jwt.Token {
+func LoadPrivateKey() *cose.Key {
+	key := loadOneKey(skeyCBORFile, skeyPEMFile)
+	key.Algorithm = LoadAlg()
+	return key
+}
+
+func LoadClaimsProto() *tokens.Claims {
 	if protoPath == "" {
 		log.Fatal("no --proto arg")
 	}
 
-	claimsProto, err := jwt.ReadFile(protoPath, jwt.WithVerify(false), jwt.WithValidate(false))
-	if err != nil {
-		log.Fatalf("cannot parse proto file: %s", err)
+	var claims tokens.Claims
+	if raw, err := os.ReadFile(protoPath); err != nil {
+		log.Fatalf("cannot read claims prototype: %s", err)
+	} else if err := json.Unmarshal(raw, &claims); err != nil {
+		log.Fatalf("cannot decode JSON claims prototype: %s", err)
 	}
-	return claimsProto
+	return &claims
 }
 
 func LoadLogs() tokens.Log {
-	var logs tokens.Log
 	if logsPath == "" {
 		return nil
-	} else if bs, err := os.ReadFile(logsPath); err != nil {
-		log.Fatalf("could not read logs file: %s", err)
-		return nil
-	} else if err := json.Unmarshal(bs, &logs); err != nil {
-		log.Fatalf("could not decode logs JSON: %s", err)
-		return nil
-	} else {
-		return logs
 	}
+
+	var logs tokens.Log
+	if raw, err := os.ReadFile(logsPath); err != nil {
+		log.Fatalf("could not read logs: %s", err)
+	} else if err := cbor.Unmarshal(raw, &logs); err != nil {
+		log.Fatalf("could not decode CBOR logs: %s", err)
+	}
+	return logs
 }
 
-func LoadPublicKey() jwk.Key {
-	if ks, err := LoadKeys(publicKeyPath, publicKeyJWK); err == ErrEmptyPath {
+func LoadPublicKey() *cose.Key {
+	if publicKeyCBORPath == "" && publicKeyPEMPath == "" {
 		return nil
-	} else if err != nil {
-		log.Fatalf("could not load pk: %s", err)
-		return nil
-	} else if k, ok := ks.Key(0); !ok {
-		log.Fatal("too many or too few pk provided in file")
-		return nil
-	} else {
-		return k
 	}
-}
-
-func LoadHeaderKeyJWK() bool {
-	switch headerKeyFmt {
-	case "jwk":
-		return true
-	case "kid":
-		return false
-	default:
-		panic("illegal argument for key-fmt")
+	key := loadOneKey(publicKeyCBORPath, publicKeyPEMPath)
+	publicKey, err := PublicKey(key)
+	if err != nil {
+		log.Fatalf("could not derive public key: %s", err)
 	}
+	return publicKey
 }

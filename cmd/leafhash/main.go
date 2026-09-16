@@ -10,18 +10,16 @@ leaf index advertised in the SCT extension.
 package main
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"bytes"
 	"encoding/pem"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
 	"filippo.io/sunlight"
-	"github.com/adem-wg/adem-proto/pkg/consts"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/fxamacker/cbor/v2"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/x509"
@@ -61,11 +59,8 @@ func mkV1Cfg(logID []byte, leaf *ct.MerkleTreeLeaf) (*tokens.LogConfig, error) {
 		return nil, err
 	} else {
 		cfg := tokens.LogConfig{
-			Ver: consts.LogVersionV1,
-			Id:  base64.StdEncoding.EncodeToString(logID),
-			Hash: &tokens.LeafHash{
-				B64: base64.StdEncoding.EncodeToString(hash[:]),
-			},
+			Id:   bytes.Clone(logID),
+			Hash: bytes.Clone(hash[:]),
 		}
 		return &cfg, nil
 	}
@@ -76,8 +71,7 @@ func mkStaticCfg(logID []byte, sct *ct.SignedCertificateTimestamp) (*tokens.LogC
 		return nil, err
 	} else {
 		return &tokens.LogConfig{
-			Ver:   consts.LogVersionStatic,
-			Id:    base64.StdEncoding.EncodeToString(logID),
+			Id:    bytes.Clone(logID),
 			Index: &ext.LeafIndex,
 		}, nil
 	}
@@ -129,10 +123,10 @@ func main() {
 		if len(logs) == 0 {
 			log.Print("no SCTs found")
 		}
-		if bs, err := json.MarshalIndent(logs, "", "  "); err != nil {
-			log.Fatalf("could not marshal JSON: %s", err)
-		} else {
-			fmt.Printf("%s\n", string(bs))
+		if bs, err := cbor.Marshal(logs); err != nil {
+			log.Fatalf("could not encode CBOR: %s", err)
+		} else if _, err := os.Stdout.Write(bs); err != nil {
+			log.Fatalf("could not write log claim: %s", err)
 		}
 	}
 }

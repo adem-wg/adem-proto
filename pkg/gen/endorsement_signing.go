@@ -9,8 +9,12 @@ func (cfg *EndorsementConfig) SignToken() (*cose.Sign1Message, error) {
 	return SignEndorsement(cfg.sk, cfg.proto, cfg.endorse, cfg.lifetime)
 }
 
-func SignEndorsement(secretKey *cose.Key, token *tokens.Claims, endorseKid []byte, lifetime int64) (*cose.Sign1Message, error) {
+func SignEndorsement(secretKey *cose.Key, token *tokens.Claims, endorseKey *cose.Key, lifetime int64) (*cose.Sign1Message, error) {
 	prepToken(token, lifetime)
-	token.Key = endorseKid
-	return signWithHeaders(token, secretKey)
+	if kid, err := tokens.COSEThumbprint(endorseKey); err != nil {
+		return nil, err
+	} else {
+		token.Key = kid
+		return signWithHeaders(token, secretKey)
+	}
 }

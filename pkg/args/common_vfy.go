@@ -3,20 +3,23 @@ package args
 import (
 	"errors"
 	"flag"
+	"io"
 	"log"
 	"os"
 
 	"github.com/adem-wg/adem-proto/pkg/roots"
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/veraison/go-cose"
 )
 
 var CTProviderGoogle bool
 var CTProviderApple bool
 var CTProviderPattern string
-var trustedKeyPath string
-var trustedKeyJWK bool
-var trustedKeyAlg string
+var verificationKeyCBORPath string
+var verificationKeyPEMPath string
+var trustedKeyCBORPath string
+var trustedKeyPEMPath string
 var tokensFilePath string
 
 func AddCTArgs() {
@@ -26,13 +29,38 @@ func AddCTArgs() {
 }
 
 func AddVerificationArgs() {
-	flag.StringVar(&trustedKeyPath, "trusted-pk", "", "path to trusted public key(s); either PEM file or JWK set")
-	flag.BoolVar(&trustedKeyJWK, "trusted-pk-jwk", false, "are the trusted keys encoded as JWK? Default is PEM")
-	flag.StringVar(&trustedKeyAlg, "trusted-pk-alg", "", "algorithm of trusted public keys")
+	flag.StringVar(&verificationKeyCBORPath, "pk-cbor", "", "path to a CBOR array of untrusted COSE verification keys")
+	flag.StringVar(&verificationKeyPEMPath, "pk-pem", "", "path to PEM-encoded untrusted verification key(s)")
+	flag.StringVar(&trustedKeyCBORPath, "trusted-pk-cbor", "", "path to a CBOR array of trusted COSE keys")
+	flag.StringVar(&trustedKeyPEMPath, "trusted-pk-pem", "", "path to PEM-encoded trusted key(s)")
 }
 
 func AddVerificationLocalArgs() {
-	flag.StringVar(&tokensFilePath, "tokens", "", "file that contains new-line separated tokens (if omitted, will read from stdin)")
+	flag.StringVar(&tokensFilePath, "tokens", "", "file containing a CBOR array of COSE_Sign1 tokens (default: stdin)")
+}
+
+func DecodeTokens(reader io.Reader) ([]*cose.Sign1Message, error) {
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	var messages []*cose.Sign1Message
+	if err := cbor.Unmarshal(raw, &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func LoadTokens() []*cose.Sign1Message {
+	file := LoadTokensFile()
+	if file != os.Stdin {
+		defer file.Close()
+	}
+	messages, err := DecodeTokens(file)
+	if err != nil {
+		log.Fatalf("could not decode CBOR token array: %s", err)
+	}
+	return messages
 }
 
 var ErrNoLogProvider = errors.New("no log providers")
@@ -59,39 +87,44 @@ func FetchKnownLogs() error {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func LoadTrustedKeys() jwk.Set {
-	if trustedKeyPath == "" {
-		return jwk.NewSet()
+func LoadTrustedKeys() tokens.KeySet {
+	if trustedKeyCBORPath == "" && trustedKeyPEMPath == "" {
+		return tokens.KeySet{}
 	}
 
-	if ks, err := LoadKeys(trustedKeyPath, trustedKeyJWK); err != nil {
+	keys, err := LoadKeys(trustedKeyCBORPath, trustedKeyPEMPath)
+	if err != nil {
 		log.Fatalf("could not load trusted keys: %s", err)
+	}
+	if set, err := KeySet(keys); err != nil {
+		log.Fatalf("could not prepare trusted keys: %s", err)
 		return nil
 	} else {
-		return ks
+		return set
 	}
 }
 
-func LoadTrustedKeysAlg() jwa.SignatureAlgorithm {
-	if alg, ok := jwa.LookupSignatureAlgorithm(trustedKeyAlg); !ok {
-		log.Fatalf("could not load trusted key algorithm: %s\n", trustedKeyAlg)
-		return jwa.NoSignature()
-	} else {
-		return alg
+func LoadVerificationKeys() []*cose.Key {
+	if verificationKeyCBORPath == "" && verificationKeyPEMPath == "" {
+		return nil
 	}
+	keys, err := LoadKeys(verificationKeyCBORPath, verificationKeyPEMPath)
+	if err != nil {
+		log.Fatalf("could not load verification keys: %s", err)
+	}
+	return keys
 }
 
 func LoadTokensFile() *os.File {
 	if tokensFilePath == "" {
 		return os.Stdin
-	} else if f, err := os.Open(tokensFilePath); err != nil {
-		log.Fatalf("could not open file: %s", err)
+	} else if file, err := os.Open(tokensFilePath); err != nil {
+		log.Fatalf("could not open token file: %s", err)
 		return nil
 	} else {
-		return f
+		return file
 	}
 }

@@ -44,10 +44,10 @@ func publicKey(t *testing.T, key *cose.Key) *cose.Key {
 	return publicKey
 }
 
-func thumbprint(t *testing.T, key *cose.Key) []byte {
+func thumbprint(t *testing.T, key *cose.Key) string {
 	t.Helper()
 
-	thumbprint, err := tokens.COSEThumbprint(publicKey(t, key))
+	thumbprint, err := tokens.COSEThumbprintB32(publicKey(t, key))
 	if err != nil {
 		t.Fatalf("computing key thumbprint: %v", err)
 	}
@@ -96,7 +96,7 @@ func signEndorsement(t *testing.T, signingKey, endorsedKey *cose.Key, end bool) 
 	message, err := SignEndorsement(
 		signingKey,
 		newEndorsementClaims(end),
-		thumbprint(t, endorsedKey),
+		endorsedKey,
 		testLifetime,
 	)
 	if err != nil {
@@ -119,7 +119,7 @@ func trusted(t *testing.T, key *cose.Key) tokens.KeySet {
 	t.Helper()
 
 	publicKey := publicKey(t, key)
-	return tokens.KeySet{tokens.ThumbprintToString(thumbprint(t, key)): publicKey}
+	return tokens.KeySet{thumbprint(t, key): publicKey}
 }
 
 func requireLevels(t *testing.T, result vfy.VerificationResults, want ...vfy.VerificationResult) {
