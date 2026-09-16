@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base32"
 	"errors"
@@ -12,7 +13,7 @@ import (
 
 func ParseKey(raw []byte) (*cose.Key, error) {
 	k := cose.Key{}
-	if err := (&k).UnmarshalCBOR(raw); err != nil {
+	if err := (&k).UnmarshalCBOR(bytes.Clone(raw)); err != nil {
 		return nil, err
 	} else {
 		return &k, nil
@@ -52,9 +53,8 @@ func COSEThumbprintB32(key *cose.Key) (string, error) {
 }
 
 func ThumbprintToString(thumbprint []byte) string {
-	dst := []byte{}
-	base32.StdEncoding.Encode(thumbprint, dst)
-	return strings.ToLower(strings.TrimRight(string(dst), "="))
+	encoded := base32.StdEncoding.EncodeToString(thumbprint)
+	return strings.ToLower(strings.TrimRight(encoded, "="))
 }
 
 type KeySet = map[string]*cose.Key

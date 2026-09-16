@@ -6,23 +6,25 @@ import (
 	"github.com/adem-wg/adem-proto/pkg/tokens"
 )
 
-func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trustedKeys tokens.KeySet) ([]VerificationResult, *ADEMToken) {
-	endorsedBy := make(map[string]ADEMToken)
+func verifySignedOrganizational(emblem *ADEMToken, endorsements []*ADEMToken, trustedKeys tokens.KeySet) ([]VerificationResult, *ADEMToken) {
+	endorsedBy := make(map[string]*ADEMToken)
 	for _, endorsement := range endorsements {
 		if endorsement.Token.End == nil {
-			log.Printf("endorsement has no end claim")
+			log.Println("endorsement has no end claim")
 			continue
 		} else if endorsement.Token.Key == nil {
-			log.Printf("endorsement misses key")
+			log.Println("endorsement misses key")
 			continue
 		} else if endorsement.Token.Iss != emblem.Token.Iss {
+			// Verify among external endorsements
 			continue
 		} else if endorsement.Token.Sub != emblem.Token.Iss { // TODO: Funny combinations of empty strings?
 			continue
 		} else {
 			endorsedKid := tokens.ThumbprintToString(endorsement.Token.Key)
 			if emblem.VerificationKid != endorsedKid && !*endorsement.Token.End {
-				continue
+				log.Print("non-delegating endorsement targets the wrong key")
+				return []VerificationResult{INVALID}, nil
 			} else if _, ok := endorsedBy[endorsedKid]; ok {
 				log.Println("illegal branch in endorsements")
 				return []VerificationResult{INVALID}, nil
@@ -45,11 +47,16 @@ func verifySignedOrganizational(emblem ADEMToken, endorsements []ADEMToken, trus
 				log.Printf("emblem does not comply with endorsement constraints: %s\n", err)
 				return []VerificationResult{INVALID}, nil
 			} else {
+				delete(endorsedBy, last.VerificationKid)
 				last = endorsing
 			}
 		} else {
-			root = &last
+			root = last
 		}
+	}
+	if len(endorsedBy) > 0 {
+		log.Print("endorsements do not form a single chain")
+		return []VerificationResult{INVALID}, nil
 	}
 
 	results := []VerificationResult{SIGNED}

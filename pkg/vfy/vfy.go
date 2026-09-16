@@ -19,31 +19,31 @@ var ErrNoIss = errors.New("issuer claim missing")
 var ErrTokenNonCompact = errors.New("token is not in compact serialization")
 
 type VerificationResults struct {
-	results    []VerificationResult
-	marked     []string
-	issuer     string
-	endorsedBy []string
+	Results    []VerificationResult
+	Marked     []string
+	Issuer     string
+	EndorsedBy []string
 }
 
 func ResultInvalid() VerificationResults {
-	return VerificationResults{results: []VerificationResult{INVALID}}
+	return VerificationResults{Results: []VerificationResult{INVALID}}
 }
 
 func (res VerificationResults) Print() {
 	lns := []string{"Verified set of tokens. Results:"}
-	resultsStrs := make([]string, 0, len(res.results))
-	for _, r := range res.results {
+	resultsStrs := make([]string, 0, len(res.Results))
+	for _, r := range res.Results {
 		resultsStrs = append(resultsStrs, r.String())
 	}
 	lns = append(lns, fmt.Sprintf("- Security levels:    %s", strings.Join(resultsStrs, ", ")))
-	if len(res.marked) > 0 {
-		lns = append(lns, fmt.Sprintf("- Marked assets:   %s", strings.Join(res.marked, ", ")))
+	if len(res.Marked) > 0 {
+		lns = append(lns, fmt.Sprintf("- Marked assets:   %s", strings.Join(res.Marked, ", ")))
 	}
-	if res.issuer != "" {
-		lns = append(lns, fmt.Sprintf("- Issuer of emblem:   %s", res.issuer))
+	if res.Issuer != "" {
+		lns = append(lns, fmt.Sprintf("- Issuer of emblem:   %s", res.Issuer))
 	}
-	if len(res.endorsedBy) > 0 {
-		lns = append(lns, fmt.Sprintf("- Issuer endorsed by: %s", strings.Join(res.endorsedBy, ", ")))
+	if len(res.EndorsedBy) > 0 {
+		lns = append(lns, fmt.Sprintf("- Issuer endorsed by: %s", strings.Join(res.EndorsedBy, ", ")))
 	}
 	log.Print(strings.Join(lns, "\n"))
 }
@@ -117,39 +117,17 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys tokens.KeySet) VerificationRes
 	th := NewTokenSet(untrustedKeys)
 	for _, rawToken := range tokensNoKeys {
 		if err := th.AddToken(rawToken); err != nil {
-			log.Printf("could not verify token: %s\n", err)
+			log.Printf("validation failed: %s\n", err)
+			return ResultInvalid()
 		}
 	}
 
-	verifiedTokens, errs := th.Verify(trustedKeys)
-
-	if len(errs) > 0 {
-		log.Printf("encountered the following errors during token verification...")
-		for _, err := range errs {
-			log.Print(err)
-		}
-	}
-
-	var emblem *ADEMToken
-	endorsements := []ADEMToken{}
-	for _, t := range verifiedTokens {
-		if t.IsEndorsement() {
-			endorsements = append(endorsements, t)
-		} else if t.IsEmblem() {
-			if emblem == nil {
-				emblem = &t
-			}
-		} else {
-			log.Printf("Discarding invalid token")
-		}
-	}
-
-	if emblem == nil {
+	if th.Emblem == nil {
 		log.Print("no emblem found")
 		return ResultInvalid()
 	}
 
-	vfyResults, root := verifySignedOrganizational(*emblem, endorsements, trustedKeys)
+	vfyResults, root := verifySignedOrganizational(th.Emblem, th.Endorsements, trustedKeys)
 	if util.Contains(vfyResults, INVALID) {
 		return ResultInvalid()
 	}
@@ -158,17 +136,13 @@ func VerifyTokens(rawTokens [][]byte, trustedKeys tokens.KeySet) VerificationRes
 	var endorsedBy []string
 
 	if util.Contains(vfyResults, ORGANIZATIONAL) {
-		endorsedResults, endorsedBy = verifyEndorsed(*emblem, *root, endorsements, trustedKeys)
-	}
-
-	if util.Contains(endorsedResults, INVALID) {
-		return ResultInvalid()
+		endorsedResults, endorsedBy = verifyEndorsed(th.Emblem, root, th.Endorsements, trustedKeys)
 	}
 
 	return VerificationResults{
-		results:    append(vfyResults, endorsedResults...),
-		issuer:     root.Token.Iss,
-		endorsedBy: endorsedBy,
-		marked:     emblem.Token.Assets,
+		Results:    append(vfyResults, endorsedResults...),
+		Issuer:     root.Token.Iss,
+		EndorsedBy: endorsedBy,
+		Marked:     th.Emblem.Token.Assets,
 	}
 }

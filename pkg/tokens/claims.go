@@ -8,17 +8,17 @@ import (
 )
 
 type Claims struct {
-	Ver    int      `cbor:"ver"`
-	Iss    string   `cbor:"1,keyasint,omitempty"`
-	Sub    string   `cbor:"2,keyasint,omitempty"`
-	Exp    int64    `cbor:"4,keyasint"`
-	Nbf    int64    `cbor:"5,keyasint"`
-	Iat    int64    `cbor:"6,keyasint,omitempty"`
-	Prp    byte     `cbor:"prp"`
-	Assets []string `cbor:"assets,omitempty"`
-	Key    []byte   `cbor:"key,omitempty"`
-	End    *bool    `cbor:"end,omitempty"`
-	Log    Log      `cbor:"log,omitempty"`
+	Ver    int      `cbor:"ver" json:"ver"`
+	Iss    string   `cbor:"1,keyasint,omitempty" json:"iss,omitempty"`
+	Sub    string   `cbor:"2,keyasint,omitempty" json:"sub,omitempty"`
+	Exp    int64    `cbor:"4,keyasint" json:"exp,omitempty"`
+	Nbf    int64    `cbor:"5,keyasint" json:"nbf,omitempty"`
+	Iat    int64    `cbor:"6,keyasint,omitempty" json:"iat,omitempty"`
+	Prp    byte     `cbor:"prp" json:"prp"`
+	Assets []string `cbor:"assets,omitempty" json:"assets,omitempty"`
+	Key    []byte   `cbor:"key,omitempty" json:"key,omitempty"`
+	End    *bool    `cbor:"end,omitempty" json:"end,omitempty"`
+	Log    Log      `cbor:"log,omitempty" json:"log,omitempty"`
 }
 
 func (cs *Claims) GetEndorsedKID() (string, bool) {
@@ -43,9 +43,9 @@ const MaxPurpose = RedCrProtective | RedCrIndicative | DangerousForces | CivilDe
 
 // Struct that represents an identifying log binding.
 type LogConfig struct {
-	Id    []byte `cbor:"id"`
-	Hash  []byte `cbor:"hash,omitempty"`
-	Index *int64 `cbor:"index,omitempty"`
+	Id    []byte `cbor:"id" json:"id"`
+	Hash  []byte `cbor:"hash,omitempty" json:"hash,omitempty"`
+	Index *int64 `cbor:"index,omitempty" json:"index,omitempty"`
 }
 
 func DecodePayload(payload []byte) (*Claims, error) {

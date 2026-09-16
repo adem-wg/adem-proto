@@ -1,6 +1,7 @@
 package roots
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -39,7 +40,7 @@ func storeLogs(rawJSON []byte) error {
 			for _, l := range operator.Logs {
 				id := LogIDToString(l.LogID)
 				v1Logs[id] = V1Log{
-					KeyDER: append([]byte(nil), l.Key...),
+					KeyDER: bytes.Clone(l.Key),
 					URL:    l.URL,
 				}
 			}
@@ -47,7 +48,7 @@ func storeLogs(rawJSON []byte) error {
 			for _, l := range operator.TiledLogs {
 				id := LogIDToString(l.LogID)
 				staticLogs[id] = StaticLog{
-					KeyDER:        append([]byte(nil), l.Key...),
+					KeyDER:        bytes.Clone(l.Key),
 					MonitoringURL: l.MonitoringURL,
 				}
 			}
