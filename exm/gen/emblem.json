@@ -1,8 +1,5 @@
 {
-  "ver": "v1",
+  "ver": 1,
   "assets": ["example.com"],
-  "emb": {
-    "prp": ["protective"],
-    "dst": ["udp", "dns"]
-  }
+  "prp": 1
 }

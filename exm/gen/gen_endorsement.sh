@@ -4,5 +4,8 @@ if [ ! -f private_end.pem ]; then
 fi
 
 go run github.com/adem-wg/adem-proto/cmd/emblemgen \
-  -skey private_end.pem -alg ES512 -proto endorsement.json \
-  -pk private_emb.pem > endorsement.jws
+  -skey-pem private_end.pem -alg ES512 -proto endorsement.json \
+  -pk-pem private_emb.pem > endorsement.cbor
+
+go run github.com/adem-wg/adem-proto/cmd/kid \
+  -pk-pem private_end.pem -key-out > endorsement-key.cbor
