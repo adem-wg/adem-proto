@@ -23,14 +23,14 @@ var publicKeyPEMPath string
 func AddSigningArgs() {
 	flag.StringVar(&alg, "alg", "", "COSE signing algorithm (for example ES256)")
 	flag.Int64Var(&lifetime, "lifetime", 172800, "token validity period; ignored if the claims specify exp")
-	flag.StringVar(&skeyCBORFile, "skey-cbor", "", "path to a CBOR array of private COSE keys")
+	flag.StringVar(&skeyCBORFile, "skey-cbor", "", "path to a CBOR array of byte strings containing private COSE keys")
 	flag.StringVar(&skeyPEMFile, "skey-pem", "", "path to a PEM-encoded private key")
 	flag.StringVar(&protoPath, "proto", "", "path to a JSON-encoded Claims object")
 	flag.StringVar(&logsPath, "logs", "", "path to a CBOR-encoded log claim")
 }
 
 func AddPublicKeyArgs() {
-	flag.StringVar(&publicKeyCBORPath, "pk-cbor", "", "path to a CBOR array of COSE keys")
+	flag.StringVar(&publicKeyCBORPath, "pk-cbor", "", "path to a CBOR array of byte strings containing COSE keys")
 	flag.StringVar(&publicKeyPEMPath, "pk-pem", "", "path to a PEM-encoded key")
 }
 

@@ -41,7 +41,9 @@ func main() {
 
 	if err != nil {
 		log.Fatal(err)
-	} else if signedTokens, err := cbor.Marshal([]*cose.Sign1Message{message}); err != nil {
+	} else if signedToken, err := message.MarshalCBOR(); err != nil {
+		log.Fatalf("could not encode signed token: %s", err)
+	} else if signedTokens, err := cbor.Marshal([][]byte{signedToken}); err != nil {
 		log.Fatalf("could not encode signed token array: %s", err)
 	} else if _, err := os.Stdout.Write(signedTokens); err != nil {
 		log.Fatalf("could not write signed token array: %s", err)

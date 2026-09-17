@@ -58,7 +58,7 @@ func DecodePayload(payload []byte) (*Claims, error) {
 		return nil, err
 	} else if err := validateOI(claims.Sub); err != nil {
 		return nil, err
-	} else if claims.Prp <= 0 || MaxPurpose <= claims.Prp {
+	} else if claims.Prp == 0 || MaxPurpose < claims.Prp {
 		return nil, errors.New("illegal purpose bitmask")
 	} else {
 		return &claims, nil

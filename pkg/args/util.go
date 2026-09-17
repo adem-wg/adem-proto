@@ -100,9 +100,17 @@ func LoadKeys(cborPath, pemPath string) ([]*cose.Key, error) {
 	}
 
 	if cborPath != "" {
-		var keys []*cose.Key
-		if err := cbor.Unmarshal(raw, &keys); err != nil {
+		var rawKeys [][]byte
+		if err := cbor.Unmarshal(raw, &rawKeys); err != nil {
 			return nil, fmt.Errorf("could not decode CBOR key array: %w", err)
+		}
+		keys := make([]*cose.Key, 0, len(rawKeys))
+		for _, rawKey := range rawKeys {
+			key, err := tokens.ParseKey(rawKey)
+			if err != nil {
+				return nil, fmt.Errorf("could not decode COSE key: %w", err)
+			}
+			keys = append(keys, key)
 		}
 		return keys, nil
 	}

@@ -60,12 +60,21 @@ func ThumbprintToString(thumbprint []byte) string {
 type KeySet = map[string]*cose.Key
 
 func AddKey(s KeySet, k *cose.Key) error {
-	if kid, err := COSEThumbprintB32(k); err != nil {
+	publicMaterial, err := k.PublicKey()
+	if err != nil {
 		return err
-	} else {
-		s[kid] = k
-		return nil
 	}
+	publicKey, err := cose.NewKeyFromPublic(publicMaterial)
+	if err != nil {
+		return err
+	}
+	publicKey.Algorithm = k.Algorithm
+	kid, err := COSEThumbprintB32(publicKey)
+	if err != nil {
+		return err
+	}
+	s[kid] = publicKey
+	return nil
 }
 
 func AddSet(keys KeySet, source KeySet) {

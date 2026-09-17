@@ -1,7 +1,6 @@
 /*
-This tool converts CBOR arrays of ADEM tokens and COSE keys to the hexadecimal
-presentation used by the DNS tooling. Tokens and keys are detected from their
-CBOR structure rather than from file extensions.
+This tool converts CBOR arrays of byte strings containing ADEM tokens or COSE
+keys to the hexadecimal IHLE RDATA presentation format.
 */
 package main
 
@@ -11,40 +10,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
-	"github.com/adem-wg/adem-proto/pkg/tokens"
+	"github.com/adem-wg/adem-proto/pkg/dns"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/veraison/go-cose"
 )
-
-var quoted bool
-
-func init() {
-	flag.BoolVar(&quoted, "quoted", false, "quote each output line as DNS TXT record contents")
-}
-
-func printLn(format string, values ...any) {
-	line := fmt.Sprintf(format, values...)
-	if quoted {
-		line = strconv.Quote(line)
-	}
-	fmt.Println(line)
-}
-
-func itemKind(raw []byte) (string, error) {
-	if len(raw) > 0 && raw[0]>>5 == 5 {
-		if _, err := tokens.ParseKey(raw); err != nil {
-			return "", fmt.Errorf("invalid COSE_Key: %w", err)
-		}
-		return "key", nil
-	}
-	message := cose.NewSign1Message()
-	if err := message.UnmarshalCBOR(raw); err == nil {
-		return "token", nil
-	}
-	return "", fmt.Errorf("CBOR item is neither a COSE_Key nor COSE_Sign1 token")
-}
 
 func printFile(path string) {
 	raw, err := os.ReadFile(path)
@@ -53,19 +22,17 @@ func printFile(path string) {
 		return
 	}
 
-	var items []cbor.RawMessage
-	err = cbor.Unmarshal(raw, &items)
-	if err != nil {
-		log.Printf("cannot decode %s as a CBOR array: %s", path, err)
+	var items [][]byte
+	if err := cbor.Unmarshal(raw, &items); err != nil {
+		log.Printf("cannot decode %s as a CBOR byte-string array: %s", path, err)
 		return
 	}
 	for _, item := range items {
-		kind, err := itemKind(item)
-		if err != nil {
+		if err := dns.ValidateToken(item); err != nil {
 			log.Printf("cannot use item from %s: %s", path, err)
 			continue
 		}
-		printLn("adem-%s=%s", kind, hex.EncodeToString(item))
+		fmt.Println(hex.EncodeToString(item))
 	}
 }
 

@@ -30,8 +30,11 @@ func verifyEndorsed(emblem *ADEMToken, root *ADEMToken, endorsements []*ADEMToke
 		} else if !*endorsement.Token.End {
 			log.Println("WARNING: discarding ill-formed endorsement - end claim is false")
 			continue
-		} else if root.Token.Iss != endorsement.Token.Sub {
-			// Silently skip as endorsement was probably internal endorsement
+		} else if endorsement.Token.Iss == root.Token.Iss {
+			// Internal endorsements are handled by organizational validation.
+			continue
+		} else if endorsement.Token.Sub != root.Token.Iss {
+			log.Println("WARNING: discarding ill-formed endorsement - sub claim does not match")
 			continue
 		} else if endorsement.Token.Log == nil {
 			log.Println("WARNING: discarding ill-formed endorsement - misses log claim")

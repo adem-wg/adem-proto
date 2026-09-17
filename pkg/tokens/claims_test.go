@@ -25,7 +25,7 @@ var MinimalEndorsement = Claims{
 	Sub: "https://example.com",
 	Exp: 7,
 	Nbf: 7,
-	Prp: RedCrIndicative | BlueShield,
+	Prp: MaxPurpose,
 	Key: []byte{0, 1, 2},
 	End: &True,
 }

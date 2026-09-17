@@ -29,38 +29,38 @@ func AddCTArgs() {
 }
 
 func AddVerificationArgs() {
-	flag.StringVar(&verificationKeyCBORPath, "pk-cbor", "", "path to a CBOR array of untrusted COSE verification keys")
+	flag.StringVar(&verificationKeyCBORPath, "pk-cbor", "", "path to a CBOR array of byte strings containing untrusted COSE verification keys")
 	flag.StringVar(&verificationKeyPEMPath, "pk-pem", "", "path to PEM-encoded untrusted verification key(s)")
-	flag.StringVar(&trustedKeyCBORPath, "trusted-pk-cbor", "", "path to a CBOR array of trusted COSE keys")
+	flag.StringVar(&trustedKeyCBORPath, "trusted-pk-cbor", "", "path to a CBOR array of byte strings containing trusted COSE keys")
 	flag.StringVar(&trustedKeyPEMPath, "trusted-pk-pem", "", "path to PEM-encoded trusted key(s)")
 }
 
 func AddVerificationLocalArgs() {
-	flag.StringVar(&tokensFilePath, "tokens", "", "file containing a CBOR array of COSE_Sign1 tokens (default: stdin)")
+	flag.StringVar(&tokensFilePath, "tokens", "", "file containing a CBOR array of byte strings containing COSE_Sign1 tokens (default: stdin)")
 }
 
-func DecodeTokens(reader io.Reader) ([]*cose.Sign1Message, error) {
+func DecodeTokens(reader io.Reader) ([][]byte, error) {
 	raw, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
-	var messages []*cose.Sign1Message
-	if err := cbor.Unmarshal(raw, &messages); err != nil {
+	var tokens [][]byte
+	if err := cbor.Unmarshal(raw, &tokens); err != nil {
 		return nil, err
 	}
-	return messages, nil
+	return tokens, nil
 }
 
-func LoadTokens() []*cose.Sign1Message {
+func LoadTokens() [][]byte {
 	file := LoadTokensFile()
 	if file != os.Stdin {
 		defer file.Close()
 	}
-	messages, err := DecodeTokens(file)
+	tokens, err := DecodeTokens(file)
 	if err != nil {
 		log.Fatalf("could not decode CBOR token array: %s", err)
 	}
-	return messages
+	return tokens
 }
 
 var ErrNoLogProvider = errors.New("no log providers")

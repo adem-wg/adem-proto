@@ -37,7 +37,7 @@ func (res VerificationResults) Print() {
 	}
 	lns = append(lns, fmt.Sprintf("- Security levels:    %s", strings.Join(resultsStrs, ", ")))
 	if len(res.Marked) > 0 {
-		lns = append(lns, fmt.Sprintf("- Marked assets:   %s", strings.Join(res.Marked, ", ")))
+		lns = append(lns, fmt.Sprintf("- Marked assets:      %s", strings.Join(res.Marked, ", ")))
 	}
 	if res.Issuer != "" {
 		lns = append(lns, fmt.Sprintf("- Issuer of emblem:   %s", res.Issuer))

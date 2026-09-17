@@ -37,7 +37,15 @@ func TestLoadKeysFromCBORArray(t *testing.T) {
 		key.Algorithm = cose.AlgorithmES256
 		want = append(want, key)
 	}
-	raw, err := cbor.Marshal(want)
+	rawKeys := make([][]byte, 0, len(want))
+	for _, key := range want {
+		rawKey, err := key.MarshalCBOR()
+		if err != nil {
+			t.Fatalf("encoding COSE key: %v", err)
+		}
+		rawKeys = append(rawKeys, rawKey)
+	}
+	raw, err := cbor.Marshal(rawKeys)
 	if err != nil {
 		t.Fatalf("encoding COSE key array: %v", err)
 	}
