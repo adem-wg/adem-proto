@@ -12,7 +12,7 @@ $ ./gen_endorsement.sh
 $ ./check_trusted.sh
 2023/02/03 11:34:49 Verified set of tokens. Results:
 - Security levels:    SIGNED, SIGNED_TRUSTED
-- Marked assets:   example.com
+- Marked assets:      example.com
 ```
 
 The scripts `gen_emblem.sh` and `gen_endorsement.sh` generate the emblem and endorsement respectively.
