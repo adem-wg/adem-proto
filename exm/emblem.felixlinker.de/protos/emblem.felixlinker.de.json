@@ -1,6 +1,7 @@
 {
   "end": true,
   "iss": "https://emblem.felixlinker.de",
+  "prp": 1,
   "sub": "https://emblem.felixlinker.de",
-  "ver": "v1"
+  "ver": 1
 }
