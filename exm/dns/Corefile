@@ -1,0 +1,6 @@
+example.org:8053 {
+    bind 127.0.0.1
+    errors
+    ihle 65297
+    file example.zone
+}
