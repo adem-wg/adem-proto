@@ -13,7 +13,7 @@ Some binaries are available at the [releases page](https://github.com/adem-wg/ad
 
 ### Compilation from Source
 
-All prototypes are written in the [Go programming language](https://go.dev/), version 1.24.0.
+All prototypes are written in the [Go programming language](https://go.dev/), version 1.26.0 or later.
 To compile this project, you will naturally have to install that programming language.
 After you have done so, clone this repository such that it is available on `$GOPATH`.
 
