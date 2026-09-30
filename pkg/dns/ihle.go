@@ -32,7 +32,7 @@ func Token(rr mdns.RR) ([]byte, bool, error) {
 // querying IHLE directly.
 func Lookup(name, address string) ([][]byte, error) {
 	request := new(mdns.Msg)
-	request.SetQuestion(mdns.Fqdn(name), mdns.TypeA)
+	request.SetQuestion(mdns.Fqdn(name), TypeIHLE)
 	response, _, err := new(mdns.Client).Exchange(request, address)
 	if err != nil {
 		return nil, err
