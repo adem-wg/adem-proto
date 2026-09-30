@@ -12,7 +12,6 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/tokens"
-	"github.com/fxamacker/cbor/v2"
 )
 
 var keyOut bool
@@ -31,9 +30,7 @@ func main() {
 		if keyOut {
 			if key, err := publicKey.MarshalCBOR(); err != nil {
 				log.Fatalf("could not encode COSE key: %s", err)
-			} else if raw, err := cbor.Marshal([][]byte{key}); err != nil {
-				log.Fatalf("could not encode COSE key array: %s", err)
-			} else if _, err := os.Stdout.Write(raw); err != nil {
+			} else if _, err := os.Stdout.Write(key); err != nil {
 				log.Fatalf("could not write COSE key array: %s", err)
 			}
 		} else if kid, err := tokens.COSEThumbprintB32(publicKey); err != nil {

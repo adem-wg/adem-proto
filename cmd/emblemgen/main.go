@@ -10,7 +10,6 @@ import (
 
 	"github.com/adem-wg/adem-proto/pkg/args"
 	"github.com/adem-wg/adem-proto/pkg/gen"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/veraison/go-cose"
 )
 
@@ -43,9 +42,7 @@ func main() {
 		log.Fatal(err)
 	} else if signedToken, err := message.MarshalCBOR(); err != nil {
 		log.Fatalf("could not encode signed token: %s", err)
-	} else if signedTokens, err := cbor.Marshal([][]byte{signedToken}); err != nil {
-		log.Fatalf("could not encode signed token array: %s", err)
-	} else if _, err := os.Stdout.Write(signedTokens); err != nil {
+	} else if _, err := os.Stdout.Write(signedToken); err != nil {
 		log.Fatalf("could not write signed token array: %s", err)
 	}
 }
