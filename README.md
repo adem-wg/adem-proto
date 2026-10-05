@@ -2,8 +2,8 @@
 
 This repository contains libraries and command line utilities that provide prototypes for *An Authentic Digital Emblem* (ADEM) as specified in the internet drafts:
 
-- https://www.ietf.org/archive/id/draft-linker-diem-adem-core-00.html
-- https://www.ietf.org/archive/id/draft-linker-diem-adem-dns-00.html
+- https://www.ietf.org/archive/id/draft-linker-diem-adem-core-01.html
+- https://www.ietf.org/archive/id/draft-linker-diem-adem-dns-01.html
 
 ## Prerequisites
 
