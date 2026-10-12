@@ -25,7 +25,7 @@ type CTQueryResult struct {
 
 // Verify that the given key was correctly committed to the Certificate
 // Transparency infrastructure for the given issuer.
-func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQueryResult {
+func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []*CTQueryResult {
 	verified := VerifyInclusionConfig(logs)
 	for _, queryResult := range verified {
 		queryResult.Ok = VerifyBinding(queryResult, iss, key) == nil
@@ -35,7 +35,7 @@ func VerifyBindingCerts(iss string, key jwk.Key, logs []*tokens.LogConfig) []CTQ
 
 // Verify that the rootKey is correctly bound to the issuer OI in the
 // certificate's subjects referenced by the CT query.
-func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
+func VerifyBinding(q *CTQueryResult, issuer string, rootKey jwk.Key) error {
 	kid, err := tokens.CalcKID(rootKey)
 	if err != nil {
 		log.Print("could not calculate KID")
@@ -59,8 +59,8 @@ func VerifyBinding(q CTQueryResult, issuer string, rootKey jwk.Key) error {
 
 // Verify that the hashes in the log configs are included in the respective CT
 // logs.
-func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
-	results := []CTQueryResult{}
+func VerifyInclusionConfig(logs []*tokens.LogConfig) []*CTQueryResult {
+	results := []*CTQueryResult{}
 	for _, logConfig := range logs {
 		result := CTQueryResult{}
 		if logConfig == nil {
@@ -81,7 +81,7 @@ func VerifyInclusionConfig(logs []*tokens.LogConfig) []CTQueryResult {
 				result.subjects = subjs
 			}
 		}
-		results = append(results, result)
+		results = append(results, &result)
 	}
 	return results
 }
