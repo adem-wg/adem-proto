@@ -40,7 +40,7 @@ func main() {
 	} else {
 		if kidOut {
 			fmt.Println(kid)
-		} else if bs, err := json.MarshalIndent(pk, "", "  "); err != nil {
+		} else if bs, err := json.Marshal(pk); err != nil {
 			log.Fatalf("could not marshall JSON: %s", err)
 		} else {
 			fmt.Printf("%s\n", string(bs))
