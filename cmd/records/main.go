@@ -18,9 +18,11 @@ import (
 func init() {
 	args.AddPublicKeyAlgArgs()
 	flag.BoolVar(&quoted, "quoted", false, "quote each output line as DNS TXT record contents")
+	flag.BoolVar(&unkeyed, "unkeyed", false, "disable adding records keys to TXT records")
 }
 
 var quoted bool
+var unkeyed bool
 
 func printLn(format string, ins ...any) {
 	s := fmt.Sprintf(format, ins...)
@@ -41,7 +43,11 @@ func printTokens(path string) {
 	for scanner.Scan() {
 		token := scanner.Text()
 		if token != "" {
-			printLn("adem-token=%s", token)
+			if unkeyed {
+				printLn("%s", token)
+			} else {
+				printLn("adem-token=%s", token)
+			}
 		}
 	}
 }
@@ -67,6 +73,8 @@ func printKeys(keys jwk.Set, alg jwa.SignatureAlgorithm, setAlg bool) {
 			if bJwk, err := json.Marshal(pk); err != nil {
 				log.Printf("could not encode key: %s", err)
 				continue
+			} else if unkeyed {
+				printLn("%s", bJwk)
 			} else {
 				printLn("adem-key=%s", bJwk)
 			}
